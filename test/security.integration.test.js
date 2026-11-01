@@ -65,6 +65,14 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     assert.ok(uploadDenials.rows.some(event=>event.actor_id===viewerId && event.metadata.reason==='role'));
     const form=new FormData();form.set('category','private');form.set('file',new Blob(['%PDF-test fixture'],{type:'application/pdf'}),'secret.pdf');
     const uploaded=await call(alice,'/api/documents',{method:'POST',body:form});assert.equal(uploaded.status,201);const {id}=await uploaded.json();
+    const bobForm=new FormData();bobForm.set('category','bob-private');bobForm.set('file',new Blob(['%PDF-bob-private'],{type:'application/pdf'}),'bob-private.pdf');
+    const bobUpload=await call(bob,'/api/documents',{method:'POST',body:bobForm});assert.equal(bobUpload.status,201);const bobId=(await bobUpload.json()).id;
+    const aliceDenied=await call(alice,`/api/documents/${bobId}/download`);
+    assert.equal(aliceDenied.status,404);assert.doesNotMatch(await aliceDenied.text(),/bob-private/);
+    assert.equal((await call(alice,`/api/documents/${bobId}`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({name:'stolen.pdf',category:'private'})})).status,404);
+    assert.equal((await call(alice,`/api/documents/${bobId}`,{method:'DELETE'})).status,404);
+    assert.equal((await call(alice,`/api/documents/${bobId}/permissions`)).status,404);
+    assert.equal((await (await call(alice,'/api/documents?name=bob-private.pdf')).json()).documents.length,0);
     const storedKey=(await db.query('SELECT storage_key FROM documents WHERE id=$1',[id])).rows[0].storage_key;
     assert.equal((await fetch(`${origin}/.local/documents/${storedKey}`)).status,404);
     const search=await call(alice,'/api/documents?name=secret&owner=alice%40test.invalid&category=private');

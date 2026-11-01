@@ -50,3 +50,20 @@ Revocation used an API client, not a second owner browser. The rehearsal did not
 exercise UI deletion, every search filter or error state, show the automated tests
 and threat model during the timed window, or verify a deployed environment. No
 claim is made that an already-authorized response or downloaded file is recalled.
+
+### Additional local browser exercise, 2026-11-01
+
+In a separate disposable local fixture, an owner used combined name, owner and
+category filters; a nonexistent category produced the empty-result state. The
+owner changed a synthetic PDF's category in the UI and saw confirmation. A
+synthetic owner API session deleted that PDF (HTTP 204); after browser reload,
+the owner's workspace showed zero files. A wrong password produced `Invalid
+credentials`. The administrator's activity view displayed upload, READ grant,
+metadata edit, deletion, and failed-login events. The fixture seeded the upload
+and grant through its setup API; deletion was also performed through the API.
+The temporary fixture was stopped and its synthetic state file removed.
+
+These observations and the earlier core-flow rehearsal are separate exercises,
+not one complete narrated end-to-end rehearsal. No screen or narration recording
+was made. They do not establish live deployment behavior or that previously
+received document bytes can be recalled after revocation.

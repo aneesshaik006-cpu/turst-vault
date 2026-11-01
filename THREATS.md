@@ -70,3 +70,11 @@ still use documented test-only credentials and must remain local and disposable.
 The focused Biome lint check covers selected correctness/security rules only;
 it does not replace authorization tests, full static analysis, or browser and
 staging verification. See `biome.json` for the exact enabled rules.
+
+### Reciprocal local owner isolation
+
+The HTTP integration scenario now also creates a second owner's synthetic file
+and checks that the first owner cannot download, edit, delete, enumerate its
+permissions or discover it by name. This was verified against an isolated local
+PostgreSQL schema. It does not establish deployed infrastructure isolation or
+protect a document already downloaded by an authorized user.

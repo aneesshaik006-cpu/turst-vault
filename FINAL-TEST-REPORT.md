@@ -388,3 +388,27 @@ available local browser controls did not provide an isolated screen-and-narratio
 recording facility. The existing 129-second core-flow rehearsal is not a substitute.
 Typechecking and a Vercel production build remain deferred. No staging, real Blob,
 production identity or live HTTPS security testing was performed.
+
+### Local verification, 2026-11-01 (latest baseline and working changes)
+
+The local HEAD `18c7e23de64e046a9d19d326584d6189cb198a4f` was cloned with
+`git clone --no-local --revision=<full-HEAD> <local-repository> <temporary-directory>`;
+the clone's local origin was removed. In the clone, `npm ci --offline`,
+`TEST_DATABASE_URL=<local-test-url> npm test`, `npm run lint`, and `npm run check`
+passed: 15 tests passed, none skipped; Biome checked 29 files; syntax checks
+passed; `git status --short` was empty. Online `npm audit` and
+`npm audit --omit=dev` each reported zero vulnerabilities. These checks were on
+that commit, before the subsequent working-tree changes described below.
+
+On the working tree, reciprocal owner-isolation assertions were added and the
+obsolete sign-in notice was removed. `TEST_DATABASE_URL=<local-test-url> npm test
+&& npm run lint && npm run check` passed: 15 tests, 0 failures and 0 skips; lint
+checked 29 files; syntax checks passed. A sandboxed attempt first failed four
+integration tests with `EPERM` connecting to localhost; the successful rerun
+used access to the already approved local database. See `DEMO-REHEARSAL.md`
+for the separate browser exercise and its limitations.
+
+This Node application serves its JavaScript and static files directly and has no
+local compilation or configured build script; syntax and lint checks are not a
+Vercel build or a typecheck. No deployed build, private Blob, HTTPS, proxy or
+independent production checkpoint boundary was verified.

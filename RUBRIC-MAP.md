@@ -127,3 +127,22 @@ install, 15 tests, syntax and Biome lint. Current online full and production npm
 audits reported zero vulnerabilities. These results do not verify the deployed
 security criterion. Complete narrated demo recording, independent audit identity,
 production build, staging, Blob and HTTPS verification remain incomplete.
+
+### Evidence update, 2026-11-01
+
+- **Security and threat thinking:** the full local suite passes with additional
+  reciprocal owner-isolation assertions. Independent deployed checkpoint
+  permissions, actual proxy behavior, private Blob and live security checks
+  remain unverified; see `THREATS.md` and `FINAL-TEST-REPORT.md`.
+- **Functionality:** separate local browser exercises include filtering,
+  metadata editing, deletion through the API, errors and administrator activity,
+  alongside the earlier core flow. A single complete narrated demo has not been
+  performed or recorded; see `DEMO-REHEARSAL.md`.
+- **Use of AI:** existing `PROMPTS.md` remains the evidence; no human review is
+  asserted here.
+- **Engineering:** commit `18c7e23` passed a local clean-clone install, tests,
+  lint, syntax and current online dependency audits; later working changes passed
+  tests, lint and syntax separately. The uncompiled JavaScript project has no
+  configured build or typecheck, and no Vercel build was performed.
+- **Documentation, deployment and demo:** updated local evidence is available;
+  deployment, HTTPS and a full recorded demo remain unverified.
