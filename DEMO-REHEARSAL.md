@@ -26,3 +26,27 @@ The owner revocation in this rehearsal was performed by a separate API client,
 not a second browser window. EDIT, UI deletion, all search filters, loading and
 service-error states, and a complete timed demonstration were not rehearsed here.
 The test process and synthetic schema/storage were stopped and cleaned up.
+
+## Timed local core rehearsal — 2026-11-01
+
+Elapsed time from opening the sign-in page to displaying administrator activity:
+129 seconds, including browser-automation and file-chooser delays. This is an
+observed core-flow rehearsal, not a timed narrated five-minute submission video.
+The fixture used a temporary schema, local storage and synthetic accounts/file.
+
+- Owner signed in and uploaded the synthetic PDF through the browser.
+- Viewer signed in before a grant, saw no file and received `Not found` from the
+  known download route.
+- Owner granted READ using the UI; the viewer signed in again, saw the file
+  marked READ with no edit control, and downloaded it.
+- While the viewer stayed signed in, a separate synthetic owner API session
+  revoked access. Direct navigation to the old route returned `Not found` and
+  a refresh showed zero documents. The downloaded copy remained available and
+  was removed after comparing it against the synthetic fixture.
+- Administrator signed in, saw no ungranted document, and displayed activity
+  including upload, grant, successful download, revoke and denied access.
+
+Revocation used an API client, not a second owner browser. The rehearsal did not
+exercise UI deletion, every search filter or error state, show the automated tests
+and threat model during the timed window, or verify a deployed environment. No
+claim is made that an already-authorized response or downloaded file is recalled.

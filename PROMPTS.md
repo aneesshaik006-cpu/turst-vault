@@ -166,3 +166,16 @@
 - Limitations: The user did not provide independent code review, and deployment,
   checkpoint identity separation and live proxy/storage verification remain open.
 - Commit: No commit existed at the time of writing.
+
+## 2026-11-01 — timed local core flow
+
+- Request: Keep the clean-clone baseline, finish local checks and rehearse the
+  demo without authorizing staging.
+- Work: Re-ran the local suite and exercised a synthetic owner/viewer/admin core
+  flow including upload, denial, grant, download, revocation and audit activity.
+- Verification: Fifteen tests passed; syntax passed; offline cached advisory
+  check found zero vulnerabilities. The browser flow reached admin activity in
+  129 seconds, including automation delay.
+- Limitations: Revocation used a separate owner API client; this was not a complete
+  narrated demo, an independent human review, or a staging/deployment test.
+- Baseline tested: `98ffd1a95d2ee06221866bffe9c80f6feb3d7ab4`.

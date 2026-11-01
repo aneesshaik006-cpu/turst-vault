@@ -105,3 +105,10 @@ This is the rubric supplied in the conversation; no separate authenticated
 judge source has been verified. The user's selected default for EDIT is metadata
 only, unless an authoritative requirement says otherwise. The UI and API support
 name/category edits; file-content replacement remains unsupported.
+
+### Local baseline and timed core rehearsal
+
+Local commit `98ffd1a` exists and a true local Git clone completed offline install
+and the local suite. A subsequent 129-second synthetic browser core-flow rehearsal
+reached admin activity, but was not a complete narrated demo and did not validate a
+deployed service. Earlier notes stating that no commit exists are historical.

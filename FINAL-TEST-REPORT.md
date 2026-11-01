@@ -331,3 +331,22 @@ required separate user approval. Some files remain staged, and subsequent change
 are unstaged; no commit or push exists. An independent checkpoint trust boundary,
 Vercel proxy validation, complete UI/error/race coverage and a timed demo remain
 open. No claim of 100/100 or production readiness is supported.
+
+## Timed local core rehearsal — 2026-11-01
+
+At commit `98ffd1a95d2ee06221866bffe9c80f6feb3d7ab4`, the authorized local
+PostgreSQL suite was rerun: 15 passed, 0 failed, 0 skipped (1509 ms).
+`npm run check` passed and `npm audit --offline --omit=dev` found zero cached
+advisories (freshness unknown). No current online audit, lint/typecheck or
+production build was run.
+
+A synthetic local browser core-flow rehearsal took 129 seconds from sign-in-page
+opening to administrator activity. See `DEMO-REHEARSAL.md` for observed steps and
+limits. It used one browser session at a time and a separate synthetic owner API
+session for revocation, not two browser sessions. The downloaded synthetic file
+was compared to the fixture and removed. It was not a complete narrated or
+deployed demonstration. No staging, Blob or live HTTPS test was performed.
+
+The earlier notes about a rejected commit describe the state before the user
+explicitly approved the local baseline; commit `98ffd1a` now exists and a local
+Git clone of it passed the recorded tests. No push or staging deployment occurred.
