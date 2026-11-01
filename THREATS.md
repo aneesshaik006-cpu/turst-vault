@@ -66,3 +66,7 @@ The local embedded database launcher now requires a separately supplied local-on
 password and refuses `NODE_ENV=production`. Changing the environment setting does
 not rotate an existing initialized database account. Synthetic browser fixtures
 still use documented test-only credentials and must remain local and disposable.
+
+The focused Biome lint check covers selected correctness/security rules only;
+it does not replace authorization tests, full static analysis, or browser and
+staging verification. See `biome.json` for the exact enabled rules.

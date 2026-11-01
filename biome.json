@@ -1,0 +1,52 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+  "files": {
+    "includes": [
+      "src/**/*.js",
+      "scripts/**/*.js",
+      "test/**/*.js",
+      "public/**/*.js"
+    ]
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "none",
+      "correctness": {
+        "noUnreachable": "error",
+        "noUnusedImports": "error",
+        "noUndeclaredVariables": "error"
+      },
+      "security": {
+        "noGlobalEval": "error"
+      },
+      "suspicious": {
+        "noDebugger": "error",
+        "noDuplicateObjectKeys": "error"
+      }
+    }
+  },
+  "formatter": {
+    "enabled": false
+  },
+  "assist": {
+    "enabled": false
+  },
+  "javascript": {
+    "globals": [
+      "process",
+      "Buffer",
+      "console",
+      "URL",
+      "Blob",
+      "FormData",
+      "fetch",
+      "Response",
+      "setTimeout",
+      "document",
+      "window",
+      "location",
+      "URLSearchParams"
+    ]
+  }
+}

@@ -350,3 +350,21 @@ deployed demonstration. No staging, Blob or live HTTPS test was performed.
 The earlier notes about a rejected commit describe the state before the user
 explicitly approved the local baseline; commit `98ffd1a` now exists and a local
 Git clone of it passed the recorded tests. No push or staging deployment occurred.
+
+## Local lint and current advisory check — 2026-11-01
+
+`npm audit` and `npm audit --omit=dev` queried the npm advisory service and both
+reported 0 vulnerabilities at the time of the check. An initially tried ESLint
+dependency tree reported advisories and was removed. Biome 2.6.4 was added for
+focused linting; `npm run lint` checked 29 files using the six rules in
+`biome.json`, with no diagnostics. An isolated synthetic global-eval probe caused
+lint to exit 1, then was removed. This does not establish comprehensive linting,
+type safety or production security.
+
+`TEST_DATABASE_URL=<local-test-url> npm test` returned 15 passed, 0 failed, 0
+skipped (2248 ms); `npm run check` and `npm run lint` passed. A fresh isolated
+folder copy completed `npm ci --offline`, then the same test/syntax/lint checks
+(15 passed, 0 failed/skipped, 1310 ms). This was not a Git clone of a committed
+version of these new changes. `DEMO-SCRIPT.md` is a proposed narration only: a
+complete narrated demo has not been recorded. Typechecking and a Vercel production
+build are deferred, not passed. No staging environment or real Blob store was used.

@@ -149,3 +149,14 @@ exercise invalid keys, duplicate creation and removal. This is defense in depth,
 not a substitute for protecting the database or storage backend. A file write and
 its database transaction are separate resources: failure cleanup is best effort
 and orphan reconciliation is not implemented.
+
+## Lint, type and build scope
+
+`npm run lint` runs Biome on project JavaScript with the explicitly selected
+rules in `biome.json`: undeclared variables, unreachable code, unused imports,
+global eval, debugger statements and duplicate object keys. It is a focused
+lint check, not an exhaustive security analysis. `npm run check` remains a
+separate syntax check. This JavaScript project has no TypeScript typecheck or
+compiled frontend build configured; adding superficial pass-through scripts
+would not establish either. A real Vercel production build remains unverified.
+`DEMO-SCRIPT.md` is a proposed narrated script; it is not a recording.

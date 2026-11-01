@@ -179,3 +179,16 @@
 - Limitations: Revocation used a separate owner API client; this was not a complete
   narrated demo, an independent human review, or a staging/deployment test.
 - Baseline tested: `98ffd1a95d2ee06221866bffe9c80f6feb3d7ab4`.
+
+## 2026-11-01 — local lint and demo preparation
+
+- Request: Rehearse/record the full demo, add or defer build/lint/type checks,
+  and run a current dependency audit before considering staging.
+- Finding: The existing check only parsed syntax. An initial ESLint dependency
+  tree reported advisories; it was removed and a focused Biome lint was configured.
+- Verification: Local suite: 15 passed; Biome lint checked 29 files; both current
+  `npm audit` and `npm audit --omit=dev` reported zero vulnerabilities.
+- Limitation: `DEMO-SCRIPT.md` is a proposed narration, not a recorded demo.
+  The full narrated rehearsal, type checking and Vercel build remain incomplete.
+  No staging deployment or independent human review occurred.
+- Commit: Not yet committed at the time of this entry.

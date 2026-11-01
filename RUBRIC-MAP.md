@@ -112,3 +112,10 @@ Local commit `98ffd1a` exists and a true local Git clone completed offline insta
 and the local suite. A subsequent 129-second synthetic browser core-flow rehearsal
 reached admin activity, but was not a complete narrated demo and did not validate a
 deployed service. Earlier notes stating that no commit exists are historical.
+
+### Current lint and demo preparation
+
+Focused Biome lint and a current npm dependency audit are now available; this does
+not establish a typecheck or a production build. `DEMO-SCRIPT.md` is a proposed
+narration, not a recorded or fully rehearsed demo. Deployed security and staging
+criteria remain unverified and blocked without separate authorization.
