@@ -192,3 +192,14 @@
   The full narrated rehearsal, type checking and Vercel build remain incomplete.
   No staging deployment or independent human review occurred.
 - Commit: Not yet committed at the time of this entry.
+
+## 2026-11-01 — clean clone with lint dependency
+
+- Request: Verify commit `92c4603` in a true clean local clone and complete a
+  narrated demo before considering separately authorized staging.
+- Verification: The full-hash local clone completed offline installation,
+  15 tests, syntax and lint; current online npm audits reported zero vulnerabilities.
+- Limitation: The complete narrated demo was not recorded or fully rehearsed; no
+  isolated screen-and-narration recording tool was available. No staging or
+  independent human review was claimed.
+- Commit verified: `92c4603c5eb9069523fcc8050e8c04241a53847e`.

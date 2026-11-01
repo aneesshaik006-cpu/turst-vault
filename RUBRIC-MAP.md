@@ -119,3 +119,11 @@ Focused Biome lint and a current npm dependency audit are now available; this do
 not establish a typecheck or a production build. `DEMO-SCRIPT.md` is a proposed
 narration, not a recorded or fully rehearsed demo. Deployed security and staging
 criteria remain unverified and blocked without separate authorization.
+
+### Clean-clone lint baseline
+
+Local Git commit `92c4603` was cloned from the local repository and passed offline
+install, 15 tests, syntax and Biome lint. Current online full and production npm
+audits reported zero vulnerabilities. These results do not verify the deployed
+security criterion. Complete narrated demo recording, independent audit identity,
+production build, staging, Blob and HTTPS verification remain incomplete.

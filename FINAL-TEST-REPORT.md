@@ -368,3 +368,23 @@ folder copy completed `npm ci --offline`, then the same test/syntax/lint checks
 version of these new changes. `DEMO-SCRIPT.md` is a proposed narration only: a
 complete narrated demo has not been recorded. Typechecking and a Vercel production
 build are deferred, not passed. No staging environment or real Blob store was used.
+
+## Clean Git clone of lint baseline — 2026-11-01
+
+A local `git clone --no-local --revision=<full-92c4603-hash>` of commit
+`92c4603c5eb9069523fcc8050e8c04241a53847e` was created; its local origin reference
+was removed, and no remote repository, push, or deployment was created. The
+initial short-hash clone attempt failed because that revision was not resolved by
+the local clone transport; the full-hash retry succeeded.
+
+In that clone, `npm ci --offline` succeeded; `TEST_DATABASE_URL=<local-test-url>
+npm test` reported 15 passed, 0 failed, 0 skipped (1520 ms); `npm run check` and
+`npm run lint` passed (Biome checked 29 files). Current online `npm audit` and
+`npm audit --omit=dev` both reported zero vulnerabilities. The clone's tracked
+working tree remained clean after checks. This verifies only local behavior.
+
+The complete narrated five-minute demo was not recorded or fully rehearsed; the
+available local browser controls did not provide an isolated screen-and-narration
+recording facility. The existing 129-second core-flow rehearsal is not a substitute.
+Typechecking and a Vercel production build remain deferred. No staging, real Blob,
+production identity or live HTTPS security testing was performed.
