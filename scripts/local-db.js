@@ -1,0 +1,12 @@
+import EmbeddedPostgres from 'embedded-postgres';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+if (process.env.NODE_ENV === 'production') throw new Error('Local development database cannot run in production');
+const password = process.env.LOCAL_DB_PASSWORD;
+if (!password || Buffer.byteLength(password,'utf8') < 16) throw new Error('Set LOCAL_DB_PASSWORD to a unique local-only value of at least 16 bytes');
+const directory = resolve('.local/postgres');
+const db = new EmbeddedPostgres({ databaseDir: directory, user: 'trustvault_local', password, port: 55432, persistent: true, authMethod: 'scram-sha-256', postgresFlags: ['-h', '127.0.0.1'], autoRehydrateSymlinks: true });
+if (!existsSync(resolve(directory, 'PG_VERSION'))) await db.initialise();
+await db.start();
+console.log('Local development PostgreSQL ready on port 55432');
+for (const signal of ['SIGINT','SIGTERM']) process.on(signal, async () => { await db.stop(); process.exit(0); });

@@ -1,0 +1,168 @@
+# Development history
+
+## 2026-11-01 — authentication primitives
+
+- Request: Build TrustVault module by module, starting with authentication and security tests.
+- AI recommendation and useful work: Use scrypt with per-password random salts and opaque random session tokens whose hashes can be stored.
+- Incomplete or risky: These helpers do not authenticate HTTP requests, persist or expire sessions, provide CSRF protection or rate limiting, or prove database behavior. The project is not ready for use.
+- Verification: Ran `npm test`; eight tests passed, including correct and incorrect passwords, unique salts, invalid input, and session token hashing.
+- Change: Added `src/auth-crypto.js` and `test/auth-crypto.test.js`. No human decision beyond the request is inferred.
+- Commit: Not committed.
+
+## 2026-11-01 — access control and revocation
+
+- Request: Complete the project and address the security and functionality scoring rubric.
+- AI recommendation: Add server-side, current-state permission checks, owner-managed grants, search filtering, and HTTP security tests.
+- Useful: Implemented basic grant, revoke, search, edit and delete endpoints with a test against a separate local PostgreSQL database.
+- Incomplete or risky: Audit events are not transactionally coupled to mutations; no production deployment, audit verifier, full attack matrix or permission-race verification exists. A passing scenario is not proof of security.
+- Verification: The expanded `npm test` run against a disposable database reported nine passing tests, zero failures and zero skips. It included unauthorized access, READ/EDIT, revocation, search isolation, ownership tampering and admin denial.
+- Change: Added API routes, workspace controls and `test/security.integration.test.js`; no claim is made that a human independently reviewed the output.
+- Commit: Not committed.
+
+## 2026-11-01 — audit failure handling
+
+- Request: Work toward the security rubric and ask for deployment information when needed.
+- AI finding: Document changes could commit before an audit insert failed.
+- Change: Put document/permission mutations and their success events into the same PostgreSQL transaction; applied the same pattern to login and logout.
+- Verification: An integration test made audit insertion fail and confirmed the document edit rolled back. The full test run reported 9 passing, 0 failing and 0 skipped.
+- Remaining risk: The runtime role is not separated from the audit owner, and there is no chain verifier or independent checkpoint. Filesystem writes are not a transactional database resource.
+- Commit: Not committed.
+
+## 2026-11-01 — security testing before deployment
+
+- Request: Complete local tests and give a score before deployment.
+- Finding: Multipart parsing could normalize a path-like filename before validation; the full security matrix and live deployment were not yet verified.
+- Change: Preserve the supplied filename for validation and add HTTP negative tests for authentication, Origin and upload attacks.
+- Verification: Nine tests passed locally with zero failures or skips. An isolated temporary-copy authorization bypass made the unauthorized-download check fail as intended. Production dependency audit reported zero vulnerabilities.
+- Limitation: A single mutation experiment does not prove every route is protected; no live deployment or Blob-store test was performed.
+- Commit: Not committed.
+
+## 2026-11-01 — audit verification
+
+- Request: Verify the current project against the rubric and improve safe local security checks without deploying.
+- Finding: Hash-linked audit events had no verification command; a database owner could rewrite or truncate the chain.
+- Change: Added a local verification function and CLI accepting an optional independently protected checkpoint; verified actual database events and tampered copies.
+- Verification: The authorized local PostgreSQL suite reported 9 passing tests and 0 failures or skips, including changed action/actor/previous hash, middle deletion, reordering and tail deletion against a checkpoint.
+- Limitation: Checkpoints are not independently provisioned and runtime DB privileges are not separated. A complete rewrite or tail truncation without a trusted checkpoint may pass; no live service was tested.
+- Commit: Not committed; repository has no commits.
+
+## 2026-11-01 — shared limits, checkpoints and admin view
+
+- Request: Continue against the rubric with local tests and no unauthorized external services.
+- Finding: Login limiting was per-process; audit checkpoints were not preserved separately; admin activity lacked a usable view.
+- Change: Added PostgreSQL shared throttling, operator-held checkpoint creation and prefix verification, admin activity UI, migration and security tests.
+- Verification: The final local suite reported 12 passed, zero failed/skipped; a two-instance test exercised the shared limit and store failure. A synthetic browser flow exercised owner upload/grant, viewer visibility and admin activity. Offline dependency audit reported zero cached advisories.
+- Limitations: Independent identities and audit privileges are not provisioned; Vercel proxy identity and real Blob storage are unverified; the user declined external Blob testing. No independent human review is claimed.
+- Commit: Not committed.
+
+## 2026-11-01 — open-session revocation and proxy boundary
+
+- Request: Reproduce checks, test revocation with an already-open viewer session,
+  and avoid external systems or deployments.
+- Finding: The prior browser check signed the viewer out before checking changes;
+  the shared limiter used the direct socket peer, not a verified Vercel client IP.
+- Change: Added a local synthetic-fixture control script and manual browser test
+  procedure; expanded spoofed-header, concurrent revoke and checkpoint tests;
+  documented staging identity and checkpoint prerequisites.
+- Verification: With the viewer still signed in, an owner API request revoked
+  access; the previously rendered download link showed Not found and a refresh
+  removed the document row. Two local server instances shared a throttle bucket
+  despite spoofed/malformed forwarding headers. Tests used a temporary schema.
+- Limitations: The idle page retained metadata until refresh; no previously
+  downloaded file or in-flight request was recalled. Operator OS/DB identities,
+  a deployed Vercel proxy and live Blob behavior remain unverified.
+- Commit: Not committed. No independent human review is claimed.
+
+- Follow-up verification: a fresh isolated copy completed `npm ci --offline`,
+  12 tests with no failures/skips, syntax checking and an offline dependency
+  audit. This was not a Git clone or an online security audit; separate identity
+  testing, full demo and deployment remain open.
+
+- Follow-up change: Require an explicit initial checkpoint or a previous trusted
+  checkpoint for rotation, to avoid silently accepting a replacement baseline.
+  The local integration suite tested both the rejection and a valid rotation;
+  identity separation remains unverified.
+
+## 2026-11-01 — runtime role and metadata editing
+
+- Request: Continue implementing and testing the supplied rubric without deploying
+  or using unauthorized credentials or cloud resources.
+- Finding: A PostgreSQL privilege template and actual metadata edit UI were absent;
+  EDIT's file-content scope was not documented. A local UI review also found that
+  a list-refresh error could be masked after a successful save.
+- Changes: Added a role grant template and temporary-role test, route matrix,
+  metadata-only edit UI, and explicit documentation of the unresolved content
+  replacement decision. Corrected the misleading refresh feedback.
+- Verification: A restricted local role could use the API but could not rewrite
+  audit events; local browser tests covered owner, READ, EDIT and revoked edit
+  states. Thirteen tests passed with zero failures/skips; offline audit reported
+  zero cached advisories. A mocked browser review verified refresh-error feedback.
+- Limitation: No independent operator OS identity or production grants were
+  verified, and this entry does not claim independent human review.
+- Commit: Not committed.
+
+## 2026-11-01 — storage failure and key handling
+
+- Request: Continue local security implementation and verification without
+  deploying or using unauthorized cloud resources.
+- Finding: Storage accepted arbitrary database keys, and audit-failure cleanup for
+  uploads had not been checked by an integration test.
+- Change: Enforced generated UUIDv4 storage keys; added local storage tests and a
+  failed-audit upload cleanup assertion.
+- Verification: The local full suite reported 14 passed, zero failed and skipped;
+  syntax passed and the offline cached advisory audit reported no vulnerabilities.
+- Limitation: Cleanup is best effort; crashes or failed deletion can leave orphans.
+  Real private Blob access and production identity isolation remain unverified.
+- Commit: Not committed. No independent human review is claimed.
+
+## 2026-11-01 — rejected upload audit coverage
+
+- Request: Continue implementation and local QA against the actual rubric without
+  deployment or unauthorized cloud resources.
+- Finding: Invalid and role-denied uploads were not consistently audited, and
+  multipart parsing occurred before non-owner role rejection.
+- Change: Reject non-owner uploads before multipart parsing; record denied audit
+  events for role, validation, size and malformed multipart cases; return 400 for
+  malformed multipart and 413 for oversized input.
+- Verification: The isolated HTTP scenario checked those responses and denial
+  events. A local synthetic browser rehearsal covered owner upload, pre-grant
+  denial, READ grant, viewer download, revocation and administrator activity.
+- Limitations: Audit coverage of all rejected operations is still incomplete;
+  external identity, production Blob, proxy and deployment are unverified. The
+  rehearsal used an owner API session for revocation and was not a timed demo.
+- Commit: Not committed. No independent human review is claimed.
+
+## 2026-11-01 — local credential configuration
+
+- Request: Complete safe local work and review credentials before a local Git baseline.
+- Finding: The embedded local database launcher used a fixed reusable development
+  password; this was inappropriate as a default even though it was demo-only.
+- Change: Require a local-only password through `LOCAL_DB_PASSWORD`, refuse the
+  launcher in production, ignore `.env.*` files and add an empty example template.
+- Verification: `test/local-db-config.test.js` rejects missing credentials and
+  production mode. The full local suite passed 15 tests; syntax and cached offline
+  dependency checks passed.
+- Limitation: Existing database passwords were not rotated. Synthetic browser test
+  credentials remain in test fixtures. Local scans cannot guarantee secret absence,
+  and no production credentials or environment were inspected.
+- Commit: Baseline not yet created at the time of writing; no independent human
+  review is claimed.
+
+- Local Git baseline follow-up: the reviewed file set was staged; the automatic
+  approval review rejected commit creation because it considered separate user
+  approval necessary. No commit was created. A fresh local folder copy (not a
+  clone) passed 15 tests, syntax checks and an offline cached dependency audit.
+
+## 2026-11-01 — EDIT scope and request errors
+
+- User direction: Use the supplied six-category rubric and select metadata-only
+  EDIT as the default unless an authoritative requirement says otherwise.
+- AI finding: Malformed JSON returned a generic server error rather than a client
+  error. A local integration assertion reproduced the behavior (500 versus 400).
+- Change: Return generic 400/413 responses for malformed/oversized JSON, retaining
+  the existing metadata-only permission scope.
+- Verification: The targeted local integration scenario passed after the change;
+  full-suite results are recorded separately in the test report.
+- Limitations: The user did not provide independent code review, and deployment,
+  checkpoint identity separation and live proxy/storage verification remain open.
+- Commit: No commit existed at the time of writing.

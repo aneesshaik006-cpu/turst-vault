@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Documents · TrustVault</title>
+  <link rel="stylesheet" href="/workspace.css">
+  <script defer src="/workspace.js"></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/workspace.html"><span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3 19 6v5c0 4-2.4 7.2-7 9-4.6-1.8-7-5-7-9V6l7-3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 11.5h6v4H9zM10 11.5V10a2 2 0 1 1 4 0v1.5" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>TrustVault</a>
+  <div class="account"><span id="user-email"></span><button id="logout" class="button-quiet" type="button">Sign out</button></div>
+</header>
+<main class="workspace">
+  <div class="workspace-heading"><div><h1>Documents</h1><p class="subtitle">Your documents and files shared with you.</p></div><div class="heading-actions"><button id="show-activity" class="button-quiet" type="button" aria-controls="activity-section" aria-expanded="false" hidden>Security activity</button><button id="show-upload" class="primary" type="button" hidden> <span aria-hidden="true">＋</span> Upload document</button></div></div>
+  <p class="work-note">Only documents you can access are shown.</p>
+  <section id="activity-section" class="activity-section" aria-labelledby="activity-title" hidden>
+    <div class="section-header"><div><h2 id="activity-title">Security activity</h2><p>Most recent 100 events</p></div><div class="activity-controls"><button id="refresh-activity" class="button-quiet" type="button">Refresh</button><button id="close-activity" class="button-quiet" type="button">Close</button></div></div>
+    <p id="activity-status" class="activity-status" role="status" aria-live="polite"></p>
+    <ol id="activity-list" class="activity-list" aria-label="Recent security events"></ol>
+  </section>
+  <section id="upload-section" class="upload-section" aria-labelledby="upload-title" hidden>
+    <div class="section-header"><div><h2 id="upload-title">Upload a document</h2><p>Choose a PDF or PNG and give it a category.</p></div><button id="cancel-upload" class="button-quiet" type="button">Cancel</button></div>
+    <form id="upload-form">
+      <div class="form-fields"><div><label for="file">Document</label><input id="file" name="file" type="file" accept="application/pdf,image/png" required><p class="field-help">PDF or PNG, up to 4 MB</p></div><div><label for="category">Category</label><input id="category" name="category" type="text" placeholder="e.g. Personal" maxlength="80" required></div></div>
+      <div class="form-actions"><button class="primary" type="submit">Upload document</button></div>
+    </form>
+  </section>
+  <section id="edit-section" class="upload-section" aria-labelledby="edit-title" hidden>
+    <div class="section-header"><div><h2 id="edit-title">Edit document details</h2><p>Update the name and category. The file itself stays the same.</p></div><button id="cancel-edit" class="button-quiet" type="button">Cancel</button></div>
+    <form id="edit-form">
+      <p id="edit-feedback" class="edit-feedback" role="status" aria-live="polite"></p>
+      <div class="form-fields"><div><label for="edit-name">Document name</label><input id="edit-name" name="name" type="text" maxlength="180" required></div><div><label for="edit-category">Category</label><input id="edit-category" name="category" type="text" maxlength="80" required></div></div>
+      <div class="form-actions"><button class="primary" type="submit">Save changes</button></div>
+    </form>
+  </section>
+  <section class="filters" aria-label="Search documents">
+    <form id="search-form">
+      <div class="search-primary"><div><label for="search-name">Find a document</label><input id="search-name" name="name" type="search" placeholder="Search by name"></div><button class="primary" type="submit">Search</button><button class="button-quiet" id="clear-search" type="button">Clear</button></div>
+      <details class="advanced-filters"><summary>More filters</summary><div class="filter-grid">
+        <div><label for="search-owner">Owner</label><input id="search-owner" name="owner" type="search" placeholder="Owner email"></div>
+        <div><label for="search-category">Category</label><input id="search-category" name="category" type="search" placeholder="All categories"></div>
+        <div><label for="search-from">From</label><input id="search-from" name="from" type="date"></div>
+        <div><label for="search-to">To</label><input id="search-to" name="to" type="date"></div>
+      </div></details>
+    </form>
+  </section>
+  <section id="permissions-section" class="upload-section" aria-labelledby="permissions-title" hidden>
+    <div class="section-header"><div><h2 id="permissions-title">Manage access</h2><p id="permissions-document"></p></div><button id="close-permissions" class="button-quiet" type="button">Close</button></div>
+    <div class="permission-content"><p id="permissions-feedback" role="status" aria-live="polite"></p><p id="permissions-loading" hidden>Loading access…</p><ul id="permissions-list" class="permissions-list"></ul>
+      <form id="permissions-form" class="permissions-form"><div><label for="share-email">Email address</label><input id="share-email" name="email" type="email" autocomplete="off" required maxlength="320"></div><div><label for="share-permission">Permission</label><select id="share-permission" name="permission"><option value="READ">Read</option><option value="EDIT">Edit</option></select></div><button class="primary" type="submit">Save access</button></form>
+    </div>
+  </section>
+  <section class="documents" aria-labelledby="documents-title">
+    <div class="documents-heading"><div><h2 id="documents-title">All documents</h2><p>Files you own or have access to</p></div><span id="document-count" class="count"></span></div>
+    <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
+    <p id="loading" class="state">Loading documents…</p>
+    <div id="empty" class="empty" hidden><div><h3>No documents yet</h3><p>Files you upload or receive access to will appear here.</p></div><button id="empty-upload" class="empty-action" type="button" hidden>Upload a document <span aria-hidden="true">→</span></button></div>
+    <div class="table-wrap"><table id="table" hidden><thead><tr><th scope="col">Name</th><th scope="col">Category</th><th scope="col">Access</th><th scope="col">Added</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody id="document-rows"></tbody></table></div>
+  </section>
+</main>
+<footer>TrustVault <span>·</span> Document workspace</footer>
+</body>
+</html>

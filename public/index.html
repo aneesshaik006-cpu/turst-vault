@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Sign in · TrustVault</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="TrustVault home">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2.7 20 6v5.8c0 4.3-2.6 7.7-8 9.5-5.4-1.8-8-5.2-8-9.5V6l8-3.3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9.6 11.7V10a2.4 2.4 0 1 1 4.8 0v1.7M9 11.7h6v4.5H9z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
+      <span>TrustVault</span>
+    </a>
+  </header>
+  <main class="page">
+    <section class="access" aria-labelledby="form-title">
+      <p class="section-name">TrustVault workspace</p>
+      <h1 id="form-title">Sign in</h1>
+      <p class="form-intro">Enter your account details to continue.</p>
+      <p class="notice"><strong>Work in progress</strong><br>The document workspace is still being built.</p>
+      <form id="login-form">
+        <label for="email">Email address</label>
+        <input id="email" name="email" type="email" autocomplete="username" placeholder="you@example.com" required>
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required>
+        <p class="feedback" id="feedback" role="status" aria-live="polite"></p>
+        <button type="submit"><span>Sign in</span><span aria-hidden="true">→</span></button>
+      </form>
+      <p class="account-note">Need an account? Contact your workspace administrator.</p>
+    </section>
+  </main>
+  <footer class="footer"><span>© 2026 TrustVault</span><span>Document workspace</span></footer>
+</body>
+</html>
