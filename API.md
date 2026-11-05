@@ -21,13 +21,16 @@ not yet production-ready and this reference does not prove deployed behavior.
 | DELETE `/api/documents/:id/permissions/:userId` | Owner only | 204 revoked; missing grant or unauthorized/deleted 404 | PERMISSION_REVOKED or ACCESS_DENIED for valid inaccessible document ID |
 | GET `/api/admin/activity` | ADMIN only; no implied document-content access | 200 latest 100 events; non-admin 403 | ACCESS_DENIED for non-admin |
 
-Audit coverage is incomplete: for example, malformed IDs, some invalid inputs,
-rate limiting and failed file operations do not consistently create events.
+Unauthenticated document requests and authenticated requests with malformed
+document IDs create denied events without recording credentials or raw paths.
+Rejected origins, malformed or oversized JSON, throttled logins, and failed
+document downloads caused by storage or integrity errors also create events.
+Some invalid inputs and failed upload/storage operations still do not consistently
+create events. Unauthenticated requests have no verified actor identity.
 Audit writes for document and permission mutations share their database
 transaction, but storage and database are distinct systems. See `THREATS.md` and
 `CHECKPOINT-OPERATIONS.md` for limitations and staging requirements.
 
 Malformed JSON returns a generic 400; a JSON body exceeding the configured limit
 returns a generic 413. Parser details, stack traces and request content are not
-returned in those responses. These request-body errors do not currently create
-individual audit events.
+returned in those responses. Both are audited without recording request bodies.

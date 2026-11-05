@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import pg from 'pg';
 import { hashPassword } from '../src/auth-crypto.js';
+import { checkAuditRole } from '../src/audit-role-check.js';
 const url=process.env.TEST_DATABASE_URL;
 test('separate local runtime role can append but cannot rewrite audit history', {skip:!url?'Set TEST_DATABASE_URL to a disposable PostgreSQL database':false},async()=>{
   const suffix=randomUUID().replaceAll('-','');
@@ -28,12 +29,19 @@ test('separate local runtime role can append but cannot rewrite audit history', 
     const password=await hashPassword('local-role-test-password');
     await admin.query(`INSERT INTO ${schema}.users(id,email,password_hash,role) VALUES($1,$2,$3,'OWNER')`,[randomUUID(),'role-owner@test.invalid',password]);
     await admin.query(`SET ROLE ${app}`);
+    assert.equal((await checkAuditRole(admin)).safe,true,'restricted runtime role passes effective privilege check');
     await admin.query(`INSERT INTO ${schema}.audit_events(event_id,occurred_at,action,result,previous_hash,current_hash) VALUES($1,now(),'TEST','success',$2,$3)`,[randomUUID(),'0'.repeat(64),'1'.repeat(64)]);
     assert.equal((await admin.query(`SELECT count(*)::int AS n FROM ${schema}.audit_events`)).rows[0].n,1);
     for(const sql of [`UPDATE ${schema}.audit_events SET action='TAMPERED'`,`DELETE FROM ${schema}.audit_events`,`TRUNCATE ${schema}.audit_events`,`ALTER TABLE ${schema}.audit_events DISABLE TRIGGER ALL`]) await assert.rejects(admin.query(sql),{code:'42501'});
     await assert.rejects(admin.query(`UPDATE ${schema}.users SET role='ADMIN'`),{code:'42501'});
     await assert.rejects(admin.query(`DELETE FROM ${schema}.users`),{code:'42501'});
     await admin.query('RESET ROLE');
+    assert.equal((await checkAuditRole(admin)).safe,false,'table owner or superuser fails effective privilege check');
+    await admin.query(`GRANT UPDATE ON ${schema}.audit_events TO ${app}`);
+    await admin.query(`SET ROLE ${app}`);
+    assert.equal((await checkAuditRole(admin)).safe,false,'unexpected inherited or direct UPDATE privilege is rejected');
+    await admin.query('RESET ROLE');
+    await admin.query(`REVOKE UPDATE ON ${schema}.audit_events FROM ${app}`);
     await admin.query(`SET ROLE ${reader}`);
     assert.equal((await admin.query(`SELECT count(*)::int AS n FROM ${schema}.audit_events`)).rows[0].n,1);
     await assert.rejects(admin.query(`INSERT INTO ${schema}.audit_events(event_id,occurred_at,action,result,previous_hash,current_hash) VALUES($1,now(),'TEST','success',$2,$3)`,[randomUUID(),'0'.repeat(64),'1'.repeat(64)]),{code:'42501'});

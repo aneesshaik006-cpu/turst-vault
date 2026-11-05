@@ -59,8 +59,17 @@ Upload denial handling now writes a `DOCUMENT_UPLOAD` denied event for invalid
 files, role denials and malformed multipart input. Non-owner authorization occurs
 before multipart parsing. The HTTP integration scenario tests the response and
 actor/reason evidence, and checks that audit-store failure returns 500 rather
-than treating a denied upload as successful. Unauthenticated requests, some other
-validation failures and storage exceptions are not comprehensively audited.
+than treating a denied upload as successful. Some validation failures and storage
+exceptions are not comprehensively audited.
+
+Unauthenticated document requests now create denied events with no verified
+actor; malformed document IDs are recorded without the raw input. Tokens and
+request bodies are not included. A download fails closed if its audit event
+cannot be written. Unauthenticated traffic can be abused to consume audit
+storage and serialize database writes; edge-level abuse controls and retention
+have not been implemented or verified. Rejected origins, JSON parser errors and
+throttled logins are now recorded without request bodies or credentials, but
+their pre-authentication events cannot establish a verified actor identity.
 
 The local embedded database launcher now requires a separately supplied local-only
 password and refuses `NODE_ENV=production`. Changing the environment setting does
@@ -78,3 +87,13 @@ and checks that the first owner cannot download, edit, delete, enumerate its
 permissions or discover it by name. This was verified against an isolated local
 PostgreSQL schema. It does not establish deployed infrastructure isolation or
 protect a document already downloaded by an authorized user.
+
+### Post-revocation regression (2026-11-05)
+
+After the revoke response confirms the database commit, the HTTP integration
+test reuses the viewer's still-valid session and old URL for concurrent
+downloads, metadata edits and searches. Downloads and edits are denied, search
+hides the document, and denied edits do not alter its stored name. Requests
+already authorized before the commit can still finish. The expanded open-edit
+browser procedure is documented in `BROWSER-REVOCATION-TEST.md`; this regression
+does not verify a deployed system or demonstrate every possible interleaving.

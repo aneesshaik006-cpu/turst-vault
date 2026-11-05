@@ -13,7 +13,7 @@ if (operation==='setup') {
   const upload=await fetch(origin+'/api/documents',{method:'POST',headers:{origin,cookie},body:form});
   if(!upload.ok) throw new Error(`Synthetic upload failed: ${upload.status}`);
   const {id}=await upload.json();
-  const grant=await fetch(`${origin}/api/documents/${id}/permissions`,{method:'PUT',headers:{origin,cookie,'content-type':'application/json'},body:JSON.stringify({email:'browser-viewer@test.invalid',permission:'READ'})});
+  const grant=await fetch(`${origin}/api/documents/${id}/permissions`,{method:'PUT',headers:{origin,cookie,'content-type':'application/json'},body:JSON.stringify({email:'browser-viewer@test.invalid',permission:'EDIT'})});
   if(!grant.ok) throw new Error(`Synthetic grant failed: ${grant.status}`);
   const list=await fetch(`${origin}/api/documents/${id}/permissions`,{headers:{cookie}});
   if(!list.ok) throw new Error(`Permission list failed: ${list.status}`);
@@ -21,11 +21,11 @@ if (operation==='setup') {
   const target=permissions.find(p=>p.email==='browser-viewer@test.invalid');
   if(!target) throw new Error('Synthetic viewer grant missing');
   await writeFile(path,JSON.stringify({id,cookie,userId:target.user_id}),{flag:'wx',mode:0o600});
-  console.log(`Synthetic READ grant created; previous download route: /api/documents/${id}/download`);
+  console.log(`Synthetic EDIT grant created; previous download route: /api/documents/${id}/download`);
 } else {
   const {id,cookie,userId}=JSON.parse(await readFile(path,'utf8'));
   const result=await fetch(`${origin}/api/documents/${id}/permissions/${userId}`,{method:'DELETE',headers:{origin,cookie}});
   if(result.status!==204) throw new Error(`Synthetic revocation failed: ${result.status}`);
   await unlink(path);
-  console.log('Synthetic READ grant revoked; temporary state removed');
+  console.log('Synthetic EDIT grant revoked; temporary state removed');
 }

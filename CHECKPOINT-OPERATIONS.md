@@ -25,7 +25,10 @@ For an authorized staging environment, the operator must arrange:
    the environment, never in a committed file or public command history. Keep an
    independent backup. Subsequent checkpoints must use a new filename and set
    `PREVIOUS_AUDIT_CHECKPOINT` to the last trusted file so the old prefix is
-   verified before accepting a new one.
+   verified before accepting a new one. Schedule independent verification and
+   checkpoint rotation at least daily and after a security incident; monitor
+   missed runs. This is an operational target, not an implemented scheduler.
+   The interval is the exposure window for uncheckpointed tail truncation.
 5. In a disposable staging environment only, attempt audit UPDATE/DELETE/TRUNCATE
    as the app database role and attempt checkpoint file replacement/deletion as
    both the app and database server identities. Require denial in each case;
@@ -63,3 +66,20 @@ test role could read but not append. A local API process assuming the runtime
 role successfully logged in and uploaded a synthetic document. This establishes
 only those privileges under the test configuration, not production privileges,
 operator identity separation, or checkpoint filesystem protection.
+
+## Check the effective runtime role
+
+With `DATABASE_URL` set securely to the actual application role and its intended
+schema first in the search path, run `npm run audit:check-role`. A safe result
+returns `safe: true` and exit status 0; unsafe privileges or a missing table
+return a nonzero status. The command checks effective table grants, membership in
+the table and schema owner roles, schema CREATE, superuser and CREATEROLE. Local
+tests confirm that a restricted role passes and an owner or a role granted UPDATE
+fails.
+
+This check is a useful diagnostic, not proof of the trust boundary. It does not
+inspect other reachable databases, other role escalation mechanisms, SECURITY
+DEFINER functions, extension privileges, the host, backups, or whether an
+independent checkpoint is protected. An operator must review those paths and
+run the staging tests above; do not interpret `safe: true` alone as deployment
+approval.

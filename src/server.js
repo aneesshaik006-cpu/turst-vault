@@ -19,12 +19,27 @@ app.disable('x-powered-by');
 app.use(helmet());
 app.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 // All unsafe browser requests must be same-origin, including login/logout.
-app.use((req, res, next) => {
-  if (!['GET','HEAD','OPTIONS'].includes(req.method) && req.get('origin') !== origin) return res.status(403).json({ error: 'Request rejected' });
-  next();
+app.use(async (req, res, next) => {
+  try {
+    if (!['GET','HEAD','OPTIONS'].includes(req.method) && req.get('origin') !== origin) {
+      await audit({action:'REQUEST_REJECTED',result:'denied',metadata:{reason:'origin'}});
+      return res.status(403).json({ error: 'Request rejected' });
+    }
+    next();
+  } catch (error) { next(error); }
 });
 app.use(express.json({ limit: '16kb' }));
 const cookieOptions = { httpOnly: true, secure, sameSite: 'strict', path: '/', maxAge: 8 * 60 * 60 * 1000 };
+const validId = id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+async function rejectUnauthenticated(req,res) {
+  // Never record cookies, tokens, request bodies or arbitrary URL text.
+  const match = /^\/api\/documents(?:\/([^/]+))?(?:\/|$)/.exec(req.path);
+  if (match) {
+    const documentId = match[1] && validId(match[1]) ? match[1] : null;
+    await audit({action:'ACCESS_DENIED',documentId,result:'denied',metadata:{operation:'unauthenticated_document_request',method:req.method}});
+  }
+  return res.status(401).json({ error: 'Authentication required' });
+}
 function sessionToken(req) {
   const matches = (req.headers.cookie ?? '').split(';').map(x => x.trim()).filter(x => x.startsWith('trustvault_session='));
   return matches.length === 1 ? matches[0].slice('trustvault_session='.length) : '';
@@ -32,9 +47,9 @@ function sessionToken(req) {
 async function authenticate(req, res, next) {
   try {
     const hash = hashSessionToken(sessionToken(req));
-    if (!hash) return res.status(401).json({ error: 'Authentication required' });
+    if (!hash) return await rejectUnauthenticated(req,res);
     const result = await pool.query('SELECT u.id,u.email,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at > now() AND NOT u.disabled', [hash]);
-    if (!result.rowCount) return res.status(401).json({ error: 'Authentication required' });
+    if (!result.rowCount) return await rejectUnauthenticated(req,res);
     req.user = result.rows[0]; req.sessionHash = hash; next();
   } catch (err) { next(err); }
 }
@@ -85,10 +100,9 @@ app.get('/api/documents', authenticate, async (req, res, next) => {
     res.json({ documents: result.rows });
   } catch (err) { next(err); }
 });
-const validId = id => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 async function authorizeDocument(req, res, operation) {
   const id = req.params.id;
-  if (!validId(id)) { res.status(404).json({error:'Not found'}); return null; }
+  if (!validId(id)) { await audit({actor:req.user,action:'ACCESS_DENIED',result:'denied',metadata:{operation,reason:'invalid_document_id'}}); res.status(404).json({error:'Not found'}); return null; }
   const result = await pool.query('SELECT d.*,p.permission FROM documents d LEFT JOIN document_permissions p ON p.document_id=d.id AND p.user_id=$2 WHERE d.id=$1', [id,req.user.id]);
   const row = result.rows[0];
   const allowed = row && canAccessDocument({user:{...req.user,disabled:false},document:{id:row.id,ownerId:row.owner_id,deleted:row.deleted},grant:row.permission ? {userId:req.user.id,documentId:row.id,permission:row.permission}:null,operation});
@@ -224,7 +238,14 @@ app.get('/api/documents/:id/download', authenticate, async (req, res, next) => {
     const id = req.params.id;
     const row = await authorizeDocument(req,res,'read');
     if (!row) return;
-    const content = await loadFile(row.storage_key);
+    let content;
+    try {
+      content = await loadFile(row.storage_key);
+      if (content.length !== row.size || createHash('sha256').update(content).digest('hex') !== row.checksum) throw new Error('Stored document integrity check failed');
+    } catch (error) {
+      await audit({actor:req.user,action:'DOCUMENT_DOWNLOAD',documentId:id,result:'failure',metadata:{reason:'storage_or_integrity'}});
+      throw error;
+    }
     await audit({actor:req.user,action:'DOCUMENT_DOWNLOAD',documentId:id,result:'success'});
     res.set('Content-Type','application/octet-stream');
     res.attachment(row.name);
@@ -233,9 +254,13 @@ app.get('/api/documents/:id/download', authenticate, async (req, res, next) => {
 });
 app.use(express.static(fileURLToPath(new URL('../public', import.meta.url)), { index: 'index.html' }));
 app.use((req, res) => res.status(404).json({ error: 'Not found' }));
-app.use((err, req, res, next) => {
-  if (err.type === 'entity.parse.failed') return res.status(400).json({error:'Invalid request body'});
-  if (err.type === 'entity.too.large') return res.status(413).json({error:'Request body too large'});
+app.use(async (err, req, res, next) => {
+  if (err.type === 'entity.parse.failed' || err.type === 'entity.too.large') {
+    try {
+      await audit({action:'REQUEST_REJECTED',result:'denied',metadata:{reason:err.type === 'entity.parse.failed' ? 'invalid_json' : 'body_too_large'}});
+    } catch (auditError) { console.error('Audit failed:', auditError.code ?? auditError.name); return res.status(500).json({error:'Request failed'}); }
+    return res.status(err.type === 'entity.parse.failed' ? 400 : 413).json({error:err.type === 'entity.parse.failed' ? 'Invalid request body' : 'Request body too large'});
+  }
   console.error('Request failed:', err.code ?? err.name);
   res.status(500).json({ error: 'Request failed' });
 });

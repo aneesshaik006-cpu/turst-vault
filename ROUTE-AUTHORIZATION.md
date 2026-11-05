@@ -24,8 +24,9 @@ access. Frontend role checks are only presentation.
 | GET `/api/admin/activity` | 403 unless ADMIN | 403 unless ADMIN | 403 unless ADMIN | 403 unless ADMIN | 200 | 401 | Viewer denial and admin success tested. |
 
 Unsafe requests require the exact configured Origin, including login. The 404
-convention and audit behavior are not comprehensive for malformed IDs or input
-validation failures. This table does not establish deployed behavior.
+convention and audit behavior are not comprehensive for all input validation
+failures. Malformed document IDs are audited without recording their raw value.
+This table does not establish deployed behavior.
 
 The workspace now exposes metadata editing to OWNER and EDIT permissions. In a
 synthetic browser test, OWNER and EDIT successfully changed metadata, READ did
@@ -37,3 +38,15 @@ The most recent local storage test rejects path-like or malformed storage keys,
 checks a UUIDv4 local storage round trip and duplicate creation, and verifies
 that an audit-insert failure during upload cleans up the synthetic local file and
 metadata row when cleanup succeeds. Real Blob and cleanup failure remain untested.
+
+## Authorization regression evidence (2026-11-05)
+
+The database-backed HTTP scenario exercises every document-object route with
+an unrelated owner, an unrelated viewer, an ungranted administrator, and a
+viewer holding READ and EDIT grants. It checks missing, forged, disabled and
+expired sessions across protected routes, and checks search isolation and
+revocation. The full suite passed 15 tests with no skips against disposable local
+PostgreSQL. In a separate temporary copy, changing the policy to permit all reads
+caused the unrelated-owner download assertion to fail (200 instead of 404).
+This is one mutation, not evidence that every individual route check was mutated
+or that deployed storage and concurrency are secure.

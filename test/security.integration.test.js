@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID, createHash } from 'node:crypto';
-import { readFile, mkdtemp, rm, readdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdtemp, rm, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
@@ -40,7 +40,7 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     const excessive=await fetch(origin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({data:'x'.repeat(16385)})});
     assert.equal(excessive.status,413);
     assert.deepEqual(await excessive.json(),{error:'Request body too large'});
-    async function login(email){const r=await fetch(origin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({email,password:'test-password-12345'})});assert.equal(r.status,200);return r.headers.get('set-cookie').split(';')[0];}
+    async function login(email){const r=await fetch(origin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({email,password:'test-password-12345'})});assert.equal(r.status,200);const cookie=r.headers.get('set-cookie');assert.match(cookie,/HttpOnly/i);assert.match(cookie,/SameSite=Strict/i);return cookie.split(';')[0];}
     const alice=await login('alice@test.invalid'), bob=await login('bob@test.invalid'), charlie=await login('charlie@test.invalid'), adminCookie=await login('admin@test.invalid');
     const viewerId=(await db.query('SELECT id FROM users WHERE email=$1',['charlie@test.invalid'])).rows[0].id;
     const call=(cookie,path,opts={})=>fetch(origin+path,{...opts,headers:{origin,cookie,...opts.headers}});
@@ -50,6 +50,8 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     assert.equal((await fetch(origin+'/api/documents')).status,401);
     assert.equal((await call('trustvault_session=forged','/api/documents')).status,401);
     assert.equal((await fetch(origin+'/api/auth/login',{method:'POST',headers:{origin:'https://attacker.invalid','content-type':'application/json'},body:JSON.stringify({email:'alice@test.invalid',password:'test-password-12345'})})).status,403);
+    const rejectedReasons=(await db.query("SELECT metadata->>'reason' AS reason FROM audit_events WHERE action='REQUEST_REJECTED'")).rows.map(row=>row.reason);
+    for (const reason of ['invalid_json','body_too_large','origin']) assert.ok(rejectedReasons.includes(reason),`audit ${reason}`);
     for (const [name,type,contents,expected] of [['bad.exe','application/octet-stream','MZ',400],['fake.pdf','application/pdf','not a pdf',400],['empty.pdf','application/pdf','',400],['../escape.pdf','application/pdf','%PDF-test',400]]) {
       const bad=new FormData();bad.set('category','private');bad.set('file',new Blob([contents],{type}),name);
       assert.equal((await call(alice,'/api/documents',{method:'POST',body:bad})).status,expected,`reject ${name}`);
@@ -65,6 +67,36 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     assert.ok(uploadDenials.rows.some(event=>event.actor_id===viewerId && event.metadata.reason==='role'));
     const form=new FormData();form.set('category','private');form.set('file',new Blob(['%PDF-test fixture'],{type:'application/pdf'}),'secret.pdf');
     const uploaded=await call(alice,'/api/documents',{method:'POST',body:form});assert.equal(uploaded.status,201);const {id}=await uploaded.json();
+    const anonymous=await fetch(`${origin}/api/documents/${id}/download`);
+    assert.equal(anonymous.status,401);
+    assert.equal((await call(bob,'/api/documents/not-a-uuid/download')).status,404);
+    const deniedEvidence=await db.query("SELECT actor_id,document_id,metadata FROM audit_events WHERE action='ACCESS_DENIED' ORDER BY seq DESC LIMIT 2");
+    assert.equal(deniedEvidence.rows[0].actor_id,(await db.query('SELECT id FROM users WHERE email=$1',['bob@test.invalid'])).rows[0].id);
+    assert.equal(deniedEvidence.rows[0].document_id,null);
+    assert.equal(deniedEvidence.rows[0].metadata.reason,'invalid_document_id');
+    assert.equal(deniedEvidence.rows[1].actor_id,null);
+    assert.equal(deniedEvidence.rows[1].document_id,id);
+    assert.equal(deniedEvidence.rows[1].metadata.operation,'unauthenticated_document_request');
+    // Exercise every object route with valid inputs: a 400 from validation must
+    // not be mistaken for an authorization denial.
+    const objectRoutes=[
+      ['GET',`/api/documents/${id}/download`],
+      ['PATCH',`/api/documents/${id}`,{name:'matrix.pdf',category:'matrix'}],
+      ['DELETE',`/api/documents/${id}`],
+      ['GET',`/api/documents/${id}/permissions`],
+      ['PUT',`/api/documents/${id}/permissions`,{email:'bob@test.invalid',permission:'READ'}],
+      ['DELETE',`/api/documents/${id}/permissions/${viewerId}`],
+    ];
+    async function checkObjectRoutes(cookie, expected, label) {
+      for (const [index,[method,path,body]] of objectRoutes.entries()) {
+        const response=await call(cookie,path,{method,...(body ? {headers:{'content-type':'application/json'},body:JSON.stringify(body)} : {})});
+        assert.equal(response.status,expected[index],`${label}: ${method} ${path}`);
+      }
+    }
+    for (const [label,cookie] of [['unrelated owner',bob],['unrelated viewer',charlie],['ungranted admin',adminCookie]]) {
+      await checkObjectRoutes(cookie,[404,404,404,404,404,404],label);
+      assert.equal((await (await call(cookie,'/api/documents?name=secret.pdf')).json()).documents.length,0,`${label} cannot search hidden document`);
+    }
     const bobForm=new FormData();bobForm.set('category','bob-private');bobForm.set('file',new Blob(['%PDF-bob-private'],{type:'application/pdf'}),'bob-private.pdf');
     const bobUpload=await call(bob,'/api/documents',{method:'POST',body:bobForm});assert.equal(bobUpload.status,201);const bobId=(await bobUpload.json()).id;
     const aliceDenied=await call(alice,`/api/documents/${bobId}/download`);
@@ -75,6 +107,10 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     assert.equal((await (await call(alice,'/api/documents?name=bob-private.pdf')).json()).documents.length,0);
     const storedKey=(await db.query('SELECT storage_key FROM documents WHERE id=$1',[id])).rows[0].storage_key;
     assert.equal((await fetch(`${origin}/.local/documents/${storedKey}`)).status,404);
+    await writeFile(join(root,storedKey),'%PDF-test fixturE');
+    assert.equal((await call(alice,`/api/documents/${id}/download`)).status,500,'corrupted content is not delivered');
+    assert.equal((await db.query("SELECT count(*)::int AS n FROM audit_events WHERE document_id=$1 AND action='DOCUMENT_DOWNLOAD' AND result='failure'",[id])).rows[0].n,1);
+    await writeFile(join(root,storedKey),'%PDF-test fixture');
     const search=await call(alice,'/api/documents?name=secret&owner=alice%40test.invalid&category=private');
     assert.equal(search.status,200);assert.equal(search.headers.get('cache-control'),'no-store');
     assert.equal((await search.json()).documents.length,1);
@@ -89,6 +125,8 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     assert.equal((await call(bob,`/api/documents/${id}/permissions`)).status,404);
     assert.equal((await (await call(bob,'/api/documents?name=secret.pdf')).json()).documents.length,0);
     const grant=await call(alice,`/api/documents/${id}/permissions`,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({email:'charlie@test.invalid',permission:'READ'})});assert.equal(grant.status,204);
+    await checkObjectRoutes(charlie,[200,404,404,404,404,404],'READ grant');
+    assert.equal((await (await call(charlie,'/api/documents?name=secret.pdf')).json()).documents.length,1);
     assert.equal((await call(alice,`/api/documents/${id}/permissions`)).status,200);
     for(const body of [{email:'alice@test.invalid',permission:'READ'},{email:'missing@test.invalid',permission:'READ'},{email:'charlie@test.invalid',permission:'ADMIN'}]) assert.equal((await call(alice,`/api/documents/${id}/permissions`,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(body)})).status,400);
     for(const attacker of [bob,charlie,adminCookie]) {
@@ -108,6 +146,7 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     assert.ok((await activity.json()).events.some(event=>event.action==='DOCUMENT_UPLOAD' && event.document_id===id));
     assert.equal((await call(adminCookie,`/api/documents/${id}/download`)).status,404);
     assert.equal((await call(alice,`/api/documents/${id}/permissions`,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({email:'charlie@test.invalid',permission:'EDIT'})})).status,204);
+    await checkObjectRoutes(charlie,[200,204,404,404,404,404],'EDIT grant');
     assert.equal((await call(charlie,`/api/documents/${id}`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({name:'renamed.pdf',category:'private',ownerId:'forged',content:'attacker replacement'})})).status,204);
     assert.equal(await (await call(charlie,`/api/documents/${id}/download`)).text(),'%PDF-test fixture');
     assert.equal((await call(alice,`/api/documents/${id}/permissions`,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({email:'charlie@test.invalid',permission:'READ'})})).status,204);
@@ -116,6 +155,10 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     assert.equal((await db.query('SELECT owner_id FROM documents WHERE id=$1',[id])).rows[0].owner_id,(await db.query('SELECT id FROM users WHERE email=$1',['alice@test.invalid'])).rows[0].id);
     await db.query("CREATE FUNCTION reject_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test audit failure'; END $$");
     await db.query('CREATE TRIGGER reject_audit_trigger BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION reject_audit()');
+    assert.equal((await fetch(origin+'/api/auth/login',{method:'POST',headers:{origin:'https://attacker.invalid','content-type':'application/json'},body:'{}'})).status,500,'origin rejection fails closed when audit is unavailable');
+    assert.equal((await fetch(origin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/json'},body:'{'})).status,500,'parser rejection fails closed when audit is unavailable');
+    assert.equal((await call(alice,`/api/documents/${id}/download`)).status,500,'download fails closed if the access event cannot be recorded');
+    assert.equal((await fetch(`${origin}/api/documents/${id}/download`)).status,500,'unauthenticated access fails closed if denial cannot be recorded');
     const rejectedWithoutAudit=new FormData();rejectedWithoutAudit.set('category','private');rejectedWithoutAudit.set('file',new Blob(['%PDF-test'],{type:'application/pdf'}),'forbidden.pdf');
     assert.equal((await call(charlie,'/api/documents',{method:'POST',body:rejectedWithoutAudit})).status,500,'failure to record a denied upload fails closed');
     const filesBefore=(await readdir(root)).sort();
@@ -142,6 +185,24 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     assert.equal((await call(charlie,`/api/documents/${id}/permissions`,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({email:'bob@test.invalid',permission:'READ'})})).status,404);
     assert.equal((await call(charlie,`/api/documents/${id}/permissions/${viewerId}`,{method:'DELETE'})).status,404);
     assert.equal((await (await call(charlie,'/api/documents?name=renamed.pdf')).json()).documents.length,0);
+    // The revoke response is a commit barrier. Reuse the same session and URL
+    // concurrently after it returns, and verify no rejected edit persisted.
+    const nameAfterRevoke=(await db.query('SELECT name FROM documents WHERE id=$1',[id])).rows[0].name;
+    const afterRevoke=await Promise.all(Array.from({length:5},async (_,index)=>{
+      const [download,edit,listing]=await Promise.all([
+        call(charlie,`/api/documents/${id}/download`),
+        call(charlie,`/api/documents/${id}`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({name:`revoked-${index}.pdf`,category:'private'})}),
+        call(charlie,`/api/documents?name=${encodeURIComponent(nameAfterRevoke)}`),
+      ]);
+      return {download:download.status,edit:edit.status,documents:(await listing.json()).documents};
+    }));
+    for(const result of afterRevoke) {
+      assert.equal(result.download,404,'old download URL is denied after revoke completes');
+      assert.equal(result.edit,404,'an already-open editor cannot save after revoke completes');
+      assert.equal(result.documents.length,0,'post-revoke search hides the document');
+    }
+    assert.equal((await db.query('SELECT name FROM documents WHERE id=$1',[id])).rows[0].name,nameAfterRevoke,'post-revocation edits did not persist');
+    assert.equal((await call(charlie,'/api/auth/me')).status,200,'revocation does not require logout');
     const simultaneousDeletes=await Promise.all([1,2].map(()=>call(alice,`/api/documents/${id}`,{method:'DELETE'})));
     assert.deepEqual(simultaneousDeletes.map(r=>r.status).sort(),[204,404]);
     assert.equal((await call(alice,`/api/documents/${id}/download`)).status,404);
@@ -185,10 +246,15 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     assert.equal((await call(bob,'/api/auth/logout',{method:'POST'})).status,204);
     assert.equal((await call(bob,'/api/auth/me')).status,401);
     await db.query('UPDATE users SET disabled=true WHERE id=$1',[target.rows[0].id]);
-    const protectedRoutes=[['GET','/api/auth/me'],['GET','/api/documents'],['GET',`/api/documents/${id}/download`],['PATCH',`/api/documents/${id}`],['DELETE',`/api/documents/${id}`],['GET',`/api/documents/${id}/permissions`],['GET','/api/admin/activity']];
-    for(const [method,path] of protectedRoutes) assert.equal((await call(charlie,path,{method,headers:{'content-type':'application/json'},...(method==='PATCH'?{body:'{}'}:{})})).status,401,`disabled ${method} ${path}`);
+    const protectedRoutes=[['GET','/api/auth/me'],['POST','/api/auth/logout'],['GET','/api/documents'],['POST','/api/documents'],...objectRoutes,['GET','/api/admin/activity']];
+    for(const [method,path] of protectedRoutes) {
+      for(const [label,cookie] of [['missing',''],['forged','trustvault_session=forged']]) {
+        assert.equal((await call(cookie,path,{method,headers:{'content-type':'application/json'},...(['PATCH','PUT'].includes(method)?{body:'{}'}:{})})).status,401,`${label} ${method} ${path}`);
+      }
+    }
+    for(const [method,path] of protectedRoutes) assert.equal((await call(charlie,path,{method,headers:{'content-type':'application/json'},...(['PATCH','PUT'].includes(method)?{body:'{}'}:{})})).status,401,`disabled ${method} ${path}`);
     await db.query('UPDATE users SET disabled=false WHERE id=$1',[target.rows[0].id]);
     await db.query("UPDATE sessions SET expires_at=now()-interval '1 second' WHERE user_id=$1",[target.rows[0].id]);
-    for(const [method,path] of protectedRoutes) assert.equal((await call(charlie,path,{method,headers:{'content-type':'application/json'},...(method==='PATCH'?{body:'{}'}:{})})).status,401,`expired ${method} ${path}`);
+    for(const [method,path] of protectedRoutes) assert.equal((await call(charlie,path,{method,headers:{'content-type':'application/json'},...(['PATCH','PUT'].includes(method)?{body:'{}'}:{})})).status,401,`expired ${method} ${path}`);
   } finally { if(server) {server.kill('SIGTERM');await new Promise(resolve=>server.once('exit',resolve));} await db.end(); await admin.query(`DROP SCHEMA ${schema} CASCADE`); await admin.end(); await rm(root,{recursive:true,force:true}); }
 });

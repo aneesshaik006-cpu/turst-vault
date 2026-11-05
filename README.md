@@ -46,6 +46,8 @@ the password you supplied in `DEMO_PASSWORD`. Seed does not reset existing passw
 
 ## Vercel preparation (not yet deployment-ready)
 
+See [DEPLOYMENT.md](DEPLOYMENT.md) for staging prerequisites and verification.
+
 The Express application exports its app for Vercel and supports a private Vercel
 Blob store when `STORAGE_DRIVER=vercel-blob` and `BLOB_READ_WRITE_TOKEN` are set.
 Production startup fails if private Blob storage is not configured. Connect a
@@ -107,8 +109,8 @@ rows. `test/throttle.integration.test.js` checks two local instances and failure
 `npm run check` checks JavaScript syntax; it is not a linter or type checker. Set
 `TEST_DATABASE_URL` to a dedicated disposable PostgreSQL database, then run
 `npm test`. Integration tests create and remove temporary schemas; omitting the
-variable skips them. The project has no configured production build, lint or
-typecheck script. The local setup above is a demo procedure, not a verified
+variable skips them. `npm run lint` runs the focused Biome checks described below;
+there is no configured production build or typecheck script. The local setup above is a demo procedure, not a verified
 production deployment procedure.
 
 The explicit staging setup and evidence needed to establish checkpoint and
