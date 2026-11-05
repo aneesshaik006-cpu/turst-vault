@@ -160,3 +160,4 @@ separate syntax check. This JavaScript project has no TypeScript typecheck or
 compiled frontend build configured; adding superficial pass-through scripts
 would not establish either. A real Vercel production build remains unverified.
 `DEMO-SCRIPT.md` is a proposed narrated script; it is not a recording.
+# turst-vault
