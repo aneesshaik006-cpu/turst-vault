@@ -148,14 +148,20 @@ app.put('/api/documents/:id/permissions', authenticate, async (req,res,next) => 
 app.delete('/api/documents/:id/permissions/:userId', authenticate, async (req,res,next) => {
   try {
     if (!await authorizeDocument(req,res,'managePermissions')) return;
-    if (!validId(req.params.userId)) return res.status(404).json({error:'Not found'});
+    if (!validId(req.params.userId)) {
+      await audit({actor:req.user,action:'REQUEST_REJECTED',documentId:req.params.id,result:'denied',metadata:{reason:'invalid_permission_target'}});
+      return res.status(404).json({error:'Not found'});
+    }
     const revoked=await auditedTransaction(async client => {
       const result=await client.query('DELETE FROM document_permissions WHERE document_id=$1 AND user_id=$2 RETURNING user_id',[req.params.id,req.params.userId]);
       if (!result.rowCount) return false;
       await audit({actor:req.user,action:'PERMISSION_REVOKED',documentId:req.params.id,result:'success',metadata:{targetUserId:req.params.userId}},client);
       return true;
     });
-    if (!revoked) return res.status(404).json({error:'Not found'});
+    if (!revoked) {
+      await audit({actor:req.user,action:'REQUEST_REJECTED',documentId:req.params.id,result:'denied',metadata:{reason:'permission_not_found'}});
+      return res.status(404).json({error:'Not found'});
+    }
     res.status(204).end();
   } catch(err) { next(err); }
 });

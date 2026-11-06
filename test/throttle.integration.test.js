@@ -29,6 +29,9 @@ test('login throttle is shared across instances and fails closed when store fail
     assert.equal((await attempt(4191,'203.0.113.42')).status,429);
     assert.equal((await attempt(4192,'invalid,spoofed')).status,429);
     assert.equal((await db.query("SELECT count(*)::int AS n FROM audit_events WHERE action='LOGIN_THROTTLED' AND result='denied'")).rows[0].n,2);
+    await db.query('UPDATE login_throttles SET attempts=2147483647');
+    assert.equal((await attempt(4191)).status,429,'a saturated counter continues to throttle without integer overflow');
+    assert.equal((await db.query('SELECT attempts FROM login_throttles')).rows[0].attempts,21);
     await db.query('ALTER TABLE login_throttles RENAME TO login_throttles_unavailable');
     assert.equal((await attempt(4191)).status,503);
   } finally {

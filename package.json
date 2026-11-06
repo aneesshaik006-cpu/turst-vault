@@ -11,6 +11,7 @@
     "db:local": "node scripts/local-db.js",
     "audit:verify": "node scripts/verify-audit.js",
     "audit:health": "node scripts/check-audit-health.js",
+    "audit:capacity": "node scripts/check-audit-capacity.js",
     "audit:check-role": "node scripts/check-audit-role.js",
     "audit:review-role": "node scripts/review-audit-role.js",
     "audit:checkpoint": "node scripts/create-checkpoint.js",

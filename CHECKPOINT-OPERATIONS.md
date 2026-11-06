@@ -59,6 +59,19 @@ the chain, but an independently held previous checkpoint detects changes to its
 recorded prefix. Changes after the latest checkpoint, a compromised initial
 baseline, and collusion across the operator boundary are not ruled out.
 
+## Capacity monitoring
+
+An independent monitor can run `npm run audit:capacity` with a read-only database
+credential and `AUDIT_MAX_BYTES` set to a positive integer threshold in bytes.
+It measures the audit table and its indexes and exits nonzero at or above the
+threshold, or if the measurement fails. Choose a threshold that leaves enough
+capacity and response time for the deployment, and alert on failures and missed
+runs. This does not measure total database capacity, predict growth, enforce
+retention, or send alerts. Monitor the database provider's overall storage and
+configure a retention policy that preserves verification and legal requirements;
+do not delete audit history without a separately designed and tested archival
+and checkpoint procedure.
+
 ## Local role test and grant template
 
 `ops/grant-runtime-privileges.sql` provides an optional grant template for a

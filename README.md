@@ -10,6 +10,14 @@ made. See [REPOSITORY-AUDIT.md](REPOSITORY-AUDIT.md) and [THREATS.md](THREATS.md
 
 ## Development prerequisites
 
+The ignored `.env` file can be created from `.env.example` and filled with
+environment-specific values. Node does not load it automatically in this
+project; for example, start the app with `node --env-file=.env src/server.js`.
+Keep application, staging-owner, and independent audit-operator credentials
+separate; supply privileged credentials only to the relevant operator command.
+Placeholders do not provision a scanner, backup, scheduler, alerts, or protected
+checkpoint storage.
+
 Node.js 22 and a PostgreSQL database are required. The scanner integration test
 also requires the `openssl` command to generate a temporary mock TLS certificate.
 Install with `npm ci`. Set

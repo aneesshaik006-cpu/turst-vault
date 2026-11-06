@@ -1,5 +1,20 @@
 # TrustVault local security and readiness checklist
 
+## Latest local verification — 2026-11-06
+
+The full `npm test` suite ran with `TEST_DATABASE_URL` pointing to a newly
+created disposable local PostgreSQL instance: **21 passed, 0 failed, 0
+skipped**. The instance used synthetic data and was stopped and removed after
+the run. `npm run check` and `npm run lint` also passed. This run includes
+server-side session expiration, failed permission-revocation audit events, and
+the audit-capacity command's threshold and invalid-configuration checks.
+
+The scanner test uses a mock rather than a malware engine. Local results do not
+establish staging proxy trust, failed-upload Blob cleanup, deployed session
+expiration, scanner provisioning, protected backups, or independent checkpoint
+custody and monitoring. See `BACKLOG.md` for the remaining work. Earlier
+entries below describe their respective historical runs, not the current state.
+
 Assessment date: 2026-11-01. The six user-supplied scoring criteria and the ten
 original functionality requirements are mapped in `RUBRIC-MAP.md`. No Git commit
 exists; all project files were untracked, so no committed diff or clean Git clone

@@ -44,6 +44,12 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     const alice=await login('alice@test.invalid'), bob=await login('bob@test.invalid'), charlie=await login('charlie@test.invalid'), adminCookie=await login('admin@test.invalid');
     const viewerId=(await db.query('SELECT id FROM users WHERE email=$1',['charlie@test.invalid'])).rows[0].id;
     const call=(cookie,path,opts={})=>fetch(origin+path,{...opts,headers:{origin,cookie,...opts.headers}});
+    // Expiry is enforced server-side even if a client retains its cookie.
+    const expiredCookie=await login('charlie@test.invalid');
+    const expiredToken=expiredCookie.slice('trustvault_session='.length);
+    await db.query("UPDATE sessions SET expires_at=now() - interval '1 second' WHERE token_hash=$1",[createHash('sha256').update(expiredToken).digest('hex')]);
+    assert.equal((await call(expiredCookie,'/api/documents')).status,401);
+    assert.equal((await call(charlie,'/api/documents')).status,200);
     const invalidLogin = email => fetch(origin+'/api/auth/login',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({email,password:'incorrect'})});
     const [wrong,missing]=await Promise.all([invalidLogin('alice@test.invalid'),invalidLogin('missing@test.invalid')]);
     assert.equal(wrong.status,401);assert.equal(missing.status,401);assert.deepEqual(await wrong.json(),await missing.json());
@@ -67,6 +73,10 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     assert.ok(uploadDenials.rows.some(event=>event.actor_id===viewerId && event.metadata.reason==='role'));
     const form=new FormData();form.set('category','private');form.set('file',new Blob(['%PDF-test fixture'],{type:'application/pdf'}),'secret.pdf');
     const uploaded=await call(alice,'/api/documents',{method:'POST',body:form});assert.equal(uploaded.status,201);const {id}=await uploaded.json();
+    assert.equal((await call(alice,`/api/documents/${id}/permissions/not-a-uuid`,{method:'DELETE'})).status,404);
+    assert.equal((await call(alice,`/api/documents/${id}/permissions/${randomUUID()}`,{method:'DELETE'})).status,404);
+    const revokeFailures=await db.query("SELECT metadata FROM audit_events WHERE action='REQUEST_REJECTED' AND document_id=$1 AND metadata->>'reason' IN ('invalid_permission_target','permission_not_found') ORDER BY seq",[id]);
+    assert.deepEqual(revokeFailures.rows.map(row=>row.metadata),[{reason:'invalid_permission_target'},{reason:'permission_not_found'}]);
     const anonymous=await fetch(`${origin}/api/documents/${id}/download`);
     assert.equal(anonymous.status,401);
     assert.equal((await call(bob,'/api/documents/not-a-uuid/download')).status,404);
@@ -173,6 +183,18 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     assert.equal((await call(alice,`/api/documents/${id}`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({name:'must-roll-back.pdf',category:'private'})})).status,500);
     assert.equal((await db.query('SELECT name FROM documents WHERE id=$1',[id])).rows[0].name,'renamed.pdf');
     await db.query('DROP TRIGGER reject_audit_trigger ON audit_events');
+    // A database insert failure after storage succeeds must remove the object
+    // and record the failure without committing a document.
+    await db.query("CREATE FUNCTION reject_document() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test document failure'; END $$");
+    await db.query('CREATE TRIGGER reject_document_trigger BEFORE INSERT ON documents FOR EACH ROW EXECUTE FUNCTION reject_document()');
+    const beforeInsertFailure=(await readdir(root)).sort();
+    const rejectedInsert=new FormData(); rejectedInsert.set('category','private'); rejectedInsert.set('file',new Blob(['%PDF-rollback'],{type:'application/pdf'}),'rollback.pdf');
+    assert.equal((await call(alice,'/api/documents',{method:'POST',body:rejectedInsert})).status,500);
+    assert.deepEqual((await readdir(root)).sort(),beforeInsertFailure,'database failure removes stored local object');
+    assert.equal((await db.query("SELECT count(*)::int AS n FROM documents WHERE name='rollback.pdf'")).rows[0].n,0);
+    const rollbackEvent=await db.query("SELECT result,metadata FROM audit_events WHERE action='DOCUMENT_UPLOAD' ORDER BY seq DESC LIMIT 1");
+    assert.deepEqual(rollbackEvent.rows[0],{result:'failure',metadata:{reason:'transaction'}});
+    await db.query('DROP TRIGGER reject_document_trigger ON documents');
     const target=await db.query('SELECT id FROM users WHERE email=$1',['charlie@test.invalid']);
     const [revoke, concurrentDownload, concurrentEdit] = await Promise.all([
       call(alice,`/api/documents/${id}/permissions/${target.rows[0].id}`,{method:'DELETE'}),
@@ -249,6 +271,12 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     assert.ok((await readCheckpoint(rotatedPath)).count > (await readCheckpoint(initialPath)).count);
     const healthEnv={...cliEnv,AUDIT_CHECKPOINT_FILE:rotatedPath};
     const health=await run(process.execPath,['scripts/check-audit-health.js'],{cwd:process.cwd(),env:healthEnv});
+    const capacityEnv={...cliEnv,AUDIT_MAX_BYTES:String(Number.MAX_SAFE_INTEGER)};
+    const capacity=JSON.parse((await run(process.execPath,['scripts/check-audit-capacity.js'],{cwd:process.cwd(),env:capacityEnv})).stdout);
+    assert.equal(capacity.healthy,true);
+    assert.ok(capacity.sizeBytes>0);
+    await assert.rejects(run(process.execPath,['scripts/check-audit-capacity.js'],{cwd:process.cwd(),env:{...capacityEnv,AUDIT_MAX_BYTES:String(capacity.sizeBytes)}}),error=>JSON.parse(error.stdout).healthy===false);
+    await assert.rejects(run(process.execPath,['scripts/check-audit-capacity.js'],{cwd:process.cwd(),env:{...capacityEnv,AUDIT_MAX_BYTES:'invalid'}}),error=>JSON.parse(error.stderr).healthy===false);
     assert.equal(JSON.parse(health.stdout).healthy,true);
     const staleCheckpoint=join(root,'stale-checkpoint.json');
     await writeFile(staleCheckpoint,await readFile(rotatedPath));

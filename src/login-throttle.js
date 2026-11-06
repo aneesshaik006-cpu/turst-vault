@@ -13,7 +13,7 @@ export async function loginLimit(req, res, next) {
       VALUES($1,clock_timestamp(),1)
       ON CONFLICT(peer_hash) DO UPDATE SET
         window_start = CASE WHEN t.window_start <= clock_timestamp() - interval '15 minutes' THEN clock_timestamp() ELSE t.window_start END,
-        attempts = CASE WHEN t.window_start <= clock_timestamp() - interval '15 minutes' THEN 1 ELSE t.attempts + 1 END
+        attempts = CASE WHEN t.window_start <= clock_timestamp() - interval '15 minutes' THEN 1 ELSE LEAST(t.attempts, 20) + 1 END
       RETURNING attempts`, [key]);
     if (result.rows[0].attempts > 20) {
       await audit({action:'LOGIN_THROTTLED',result:'denied'});

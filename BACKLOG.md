@@ -18,9 +18,14 @@
   with the real deployment identities and preserve the results.
 - Rejected origins, malformed or oversized JSON, throttled logins, invalid search
   dates, permission recipients and document details, and failed document
-  downloads and upload/storage operations are audited with fixed reason codes.
+  downloads, failed permission revocations and upload/storage operations are
+  audited with fixed reason codes.
   Continue reviewing coverage and monitor failures of the audit system itself.
-- Address audit-log abuse, storage capacity, retention and alerting. A compromised
+- Address audit-log abuse, storage capacity, retention and alerting. A local
+  `npm run audit:capacity` threshold check is available, but needs a deployment
+  threshold, independent scheduling and alerting. Throttle counters saturate to
+  avoid integer overflow, but repeated denied requests can still grow the audit
+  log. A compromised
   application can still append misleading events; checkpoints cannot establish
   truth or protect the uncheckpointed tail.
 
@@ -37,10 +42,15 @@
 
 - Test failed-upload cleanup against the actual Blob and database environment;
   the 2026-11-06 direct Blob privacy, authenticated read and explicit deletion
-  checks passed for a synthetic object, and staging API revocation passed.
+  checks passed for a synthetic object, and staging API revocation passed. A
+  local integration test forces a document insert failure after file storage and
+  verifies removal, database rollback and a failure audit event; it does not
+  establish Blob cleanup behavior.
 - Configure and test a trustworthy client identity at the deployment proxy;
   the current direct-peer limiter can group users behind a proxy.
-- Verify session expiration against the deployed environment. On 2026-11-06,
+- Verify session expiration against the deployed environment. The local HTTP
+  integration test also checks that an expired server-side session is rejected
+  while another valid session remains usable. On 2026-11-06,
   deployed Secure/HttpOnly/SameSite cookie flags, logout invalidation,
   cross-origin denial and an oversized upload rejection passed.
 - Provision and verify the scanning service and the safeguards described in
