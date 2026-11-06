@@ -43,6 +43,8 @@
       "fetch",
       "Response",
       "setTimeout",
+      "clearTimeout",
+      "AbortController",
       "document",
       "window",
       "location",

@@ -7,10 +7,13 @@
     "start": "node src/server.js",
     "migrate": "node scripts/migrate.js",
     "seed": "node scripts/seed.js",
+    "staging:rotate-demo": "node scripts/rotate-staging-demo-password.js",
     "db:local": "node scripts/local-db.js",
     "audit:verify": "node scripts/verify-audit.js",
+    "audit:health": "node scripts/check-audit-health.js",
     "audit:check-role": "node scripts/check-audit-role.js",
     "audit:checkpoint": "node scripts/create-checkpoint.js",
+    "storage:reconcile": "node scripts/reconcile-storage.js",
     "check": "node scripts/check-syntax.js",
     "lint": "biome lint"
   },

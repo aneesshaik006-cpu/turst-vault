@@ -29,6 +29,19 @@ For an authorized staging environment, the operator must arrange:
    checkpoint rotation at least daily and after a security incident; monitor
    missed runs. This is an operational target, not an implemented scheduler.
    The interval is the exposure window for uncheckpointed tail truncation.
+   An independently operated scheduler can run `npm run audit:health` with
+   `AUDIT_CHECKPOINT_FILE` set to the latest trusted checkpoint and `DATABASE_URL`
+   set to read-only audit credentials. The command requires a matching checkpoint,
+   checks the complete chain and fails if its file is older than 48 hours (or
+   `AUDIT_CHECKPOINT_MAX_AGE_HOURS`). Configure the external monitor to alert on
+   nonzero exit, missing runs, and a missing or stale heartbeat; the command does
+   not send alerts or schedule itself. File modification time is meaningful only
+   if the file and its metadata are independently protected and clocks are sound.
+   Local tests cover fresh, stale and future modification times, successful
+   verification with a trusted checkpoint, and rejection of a mismatched one;
+   an integration test also confirms the health command exits unsuccessfully
+   for a stale checkpoint. These do not establish staging operator isolation or
+   alert delivery.
 5. In a disposable staging environment only, attempt audit UPDATE/DELETE/TRUNCATE
    as the app database role and attempt checkpoint file replacement/deletion as
    both the app and database server identities. Require denial in each case;

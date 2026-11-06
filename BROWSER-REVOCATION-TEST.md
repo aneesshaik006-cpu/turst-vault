@@ -29,3 +29,15 @@ An idle page may continue displaying already-loaded metadata until refresh.
 Revocation cannot erase content that a recipient already downloaded.
 Requests authorized before the revocation commits may finish afterward. Once
 the revocation response is received, new requests must use the current grant.
+
+## Result — 2026-11-06
+
+Passed using the disposable PostgreSQL fixture and a separate headless Chrome
+session. The viewer opened the synthetic document's edit form, entered a new
+name, and remained signed in while the owner revoked EDIT. Saving the open form
+reported that the document was unavailable or access had been lost; the audit
+record showed an edit denial and the stored name remained unchanged. After
+closing the form, the previously displayed download link returned `Not found`.
+Returning to the workspace and refreshing showed zero files while the viewer
+remained signed in. This test used local storage; deployed-storage API checks
+are recorded in `DEPLOYMENT.md`.

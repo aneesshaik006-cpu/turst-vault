@@ -1,10 +1,24 @@
 # Vercel staging preparation
 
-Status (2026-11-05): a protected Vercel preview, private Blob store and free Neon
-database have been provisioned. Synthetic viewer login and cookie attributes
-were checked, and the runtime audit-role diagnostic passed. Storage privacy,
-revocation, proxy behavior and independent audit checkpoints remain unverified.
+Status: a protected Vercel preview, private Blob store and free Neon database
+have been provisioned. Selected staging tests are recorded below. Proxy behavior,
+independent audit checkpoints and production readiness remain unverified.
+
+Follow-up 2026-11-06: on the protected staging preview, synthetic owner and
+viewer accounts exercised upload, denial before a grant, an EDIT grant and
+successful download, and denial of both the old download route and an edit after
+revocation. The test document was soft-deleted (the storage object may remain by
+design). This test alone did not establish direct Blob URL privacy or checkpoint isolation.
 Use synthetic data only. The app is not approved for confidential documents.
+
+Further checks 2026-11-06: a newly created synthetic private Blob returned 403
+for its unauthenticated object URL, was readable with the store credential, and
+was deleted and confirmed unavailable. On the protected HTTPS preview, a
+synthetic owner session cookie had Secure, HttpOnly and SameSite=Strict flags;
+cross-origin logout was rejected, an oversized upload returned 413, and logout
+invalidated the original session cookie. These checks do not establish upload
+rollback cleanup, session expiration, trusted client IPs or backup isolation.
+See `STORAGE-POLICY.md` for the staging-only document handling policy.
 
 Preview: https://trustvault-stage-9d4d7e4f.vercel.app (Vercel authentication is
 enabled, so it is not yet a public judge-facing URL). Demo credentials are in
@@ -44,6 +58,18 @@ headers; Express middleware does not necessarily process CDN-served assets.
    refuses to run with `NODE_ENV=production`; run it as an authorized separate
    setup operation against the staging database with the necessary permissions
    and a disposable demo password. Do not weaken runtime restrictions to seed.
+
+The previous shared staging demo password was exposed and must be rotated before
+the preview is made accessible to judges. With a verified staging database-owner
+connection in `DATABASE_URL`, a new unique synthetic `DEMO_PASSWORD` supplied
+securely, and `CONFIRM_STAGING_DEMO_RESET=staging-only`, an authorized operator
+can run `npm run staging:rotate-demo` outside production mode. This replaces the
+passwords of exactly the five expected `@trustvault.demo` accounts, invalidates
+their sessions, and records an audit event in the same transaction. It stops if
+any expected account is missing. Do not put secrets in command history or logs.
+The command has only been tested against a disposable local database; it has not
+been run against staging. Share new demo credentials through an appropriate
+private channel, separate from a public judge URL.
 
 ## Verification after deployment
 

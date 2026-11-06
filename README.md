@@ -10,7 +10,9 @@ made. See [REPOSITORY-AUDIT.md](REPOSITORY-AUDIT.md) and [THREATS.md](THREATS.md
 
 ## Development prerequisites
 
-Node.js 22 and a PostgreSQL database are required. Install with `npm ci`. Set
+Node.js 22 and a PostgreSQL database are required. The scanner integration test
+also requires the `openssl` command to generate a temporary mock TLS certificate.
+Install with `npm ci`. Set
 `DATABASE_URL` to a dedicated PostgreSQL database connection string and
 `APP_ORIGIN` to the exact browser origin, e.g. `http://localhost:3000`.
 Run `npm run migrate`, set a unique demo-only `DEMO_PASSWORD` of at least 12
@@ -25,9 +27,10 @@ Unsafe requests require an exact `Origin` match. Sessions use random bearer
 cookies, with only their hash stored in PostgreSQL. Cookies are HTTP-only,
 SameSite Strict, and Secure when `NODE_ENV=production`. Document listing, upload, download, grant, revoke, edit and deletion endpoints are available, with a 100-document listing limit.
 
-Audit events are hash chained, but database privilege separation and external
-checkpoints are not yet configured. A database owner can alter or rewrite the
-chain, so it is not immutable. Audit and authentication have limited local integration coverage. Do not treat them as production-ready.
+Audit events are hash chained. A restricted runtime database role has been
+checked in staging, but independently protected checkpoints are not configured.
+A database owner can alter or rewrite the chain, so it is not immutable. Do not
+treat the audit system as production-ready.
 
 ## Local demo database
 
@@ -54,8 +57,12 @@ Production startup fails if private Blob storage is not configured. Connect a
 managed PostgreSQL database using `DATABASE_URL`, set `APP_ORIGIN` to the exact
 HTTPS origin, and run migrations using appropriately separated database roles.
 Vercel Functions limit request and response sizes, so uploads are capped at 4 MiB.
-The private Blob integration, production environment, proxy address handling, audit role permissions, and deployed security behavior have not been
-verified. Do not deploy this build for confidential documents.
+Selected staging Blob, cookie and authorization checks have passed as recorded in
+`DEPLOYMENT.md`; production controls, proxy identity and independent checkpoint
+protection remain unverified. In this local code, production-mode uploads fail
+closed without the configured HTTPS scanner described in `STORAGE-POLICY.md`.
+The scanner integration is not yet deployed or backed by a verified service.
+Do not deploy this build for confidential documents.
 
 ## Audit-chain verification
 
@@ -66,7 +73,7 @@ unsupported metadata makes verification fail. To detect truncation against a
 previously saved checkpoint, supply both `AUDIT_CHECKPOINT_COUNT` and
 `AUDIT_CHECKPOINT_HASH`. Save checkpoints in an independently protected location.
 Without a trusted checkpoint, a truncated tail or fully rewritten chain can
-verify. The database role can currently modify audit history, so the chain is not
+verify. A privileged database owner can rewrite history, so the chain is not
 immutable. Do not run verification on a confidential or production database
 without appropriate authorization.
 
@@ -138,7 +145,7 @@ objects, be a superuser, or inherit privileged roles. The script is not applied
 automatically and does not provision checkpoint identities or production roles.
 
 See `ROUTE-AUTHORIZATION.md` for the current route/role matrix, `API.md` for the
-API reference, `STAGING-TEST-PLAN.md` for the not-yet-authorized service checks,
+API reference, `STAGING-TEST-PLAN.md` for the remaining service checks,
 and `CLEAN-CLONE.md` for the future approved-clone procedure.
 
 The role integration test creates and removes unique temporary PostgreSQL roles;
@@ -150,7 +157,8 @@ Storage keys must be generated lowercase UUIDv4 identifiers; local storage tests
 exercise invalid keys, duplicate creation and removal. This is defense in depth,
 not a substitute for protecting the database or storage backend. A file write and
 its database transaction are separate resources: failure cleanup is best effort
-and orphan reconciliation is not implemented.
+and the read-only `npm run storage:reconcile` command reports candidate
+discrepancies without deleting objects. See `STORAGE-POLICY.md` for its limits.
 
 ## Lint, type and build scope
 

@@ -9,6 +9,7 @@ import multer from 'multer';
 import { randomUUID, createHash } from 'node:crypto';
 import { storeFile, removeFile, loadFile } from './storage.js';
 import { canAccessDocument } from './authorization.js';
+import { scanDocument } from './malware-scan.js';
 
 const app = express();
 const origin = process.env.APP_ORIGIN;
@@ -87,7 +88,10 @@ app.get('/api/documents', authenticate, async (req, res, next) => {
   try {
     const value = key => typeof req.query[key] === 'string' ? req.query[key].trim().slice(0, 120) : '';
     const name = value('name'), owner = value('owner'), category = value('category'), from = value('from'), to = value('to');
-    if ((from && !/^\d{4}-\d{2}-\d{2}$/.test(from)) || (to && !/^\d{4}-\d{2}-\d{2}$/.test(to))) return res.status(400).json({error:'Invalid date'});
+    if ((from && !/^\d{4}-\d{2}-\d{2}$/.test(from)) || (to && !/^\d{4}-\d{2}-\d{2}$/.test(to))) {
+      await audit({actor:req.user,action:'REQUEST_REJECTED',result:'denied',metadata:{reason:'invalid_search_date'}});
+      return res.status(400).json({error:'Invalid date'});
+    }
     const result = await pool.query(`SELECT d.id,d.name,d.category,d.created_at,
       CASE WHEN d.owner_id=$1 THEN 'OWNER' ELSE p.permission END AS permission
       FROM documents d JOIN users owner ON owner.id=d.owner_id LEFT JOIN document_permissions p ON p.document_id=d.id AND p.user_id=$1
@@ -121,9 +125,15 @@ app.put('/api/documents/:id/permissions', authenticate, async (req,res,next) => 
     if (!await authorizeDocument(req,res,'managePermissions')) return;
     const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
     const permission = req.body?.permission;
-    if (email.length > 320 || !['READ','EDIT'].includes(permission)) return res.status(400).json({error:'Invalid permission or email'});
+    if (email.length > 320 || !['READ','EDIT'].includes(permission)) {
+      await audit({actor:req.user,action:'REQUEST_REJECTED',documentId:req.params.id,result:'denied',metadata:{reason:'invalid_permission'}});
+      return res.status(400).json({error:'Invalid permission or email'});
+    }
     const target = await pool.query('SELECT id FROM users WHERE email=$1 AND NOT disabled',[email]);
-    if (!target.rowCount || target.rows[0].id === req.user.id) return res.status(400).json({error:'Invalid recipient'});
+    if (!target.rowCount || target.rows[0].id === req.user.id) {
+      await audit({actor:req.user,action:'REQUEST_REJECTED',documentId:req.params.id,result:'denied',metadata:{reason:'invalid_recipient'}});
+      return res.status(400).json({error:'Invalid recipient'});
+    }
     const targetId = target.rows[0].id;
     await auditedTransaction(async client => {
       const inserted = await client.query(`INSERT INTO document_permissions(document_id,user_id,permission,granted_by)
@@ -167,7 +177,10 @@ app.patch('/api/documents/:id', authenticate, async (req,res,next) => {
     if (!await authorizeDocument(req,res,'edit')) return;
     const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
     const category = typeof req.body?.category === 'string' ? req.body.category.trim() : '';
-    if (!name || name.length > 180 || !category || category.length > 80 || /[\\/\u0000-\u001f\u007f]/.test(name) || /[\u0000-\u001f\u007f]/.test(category)) return res.status(400).json({error:'Invalid document details'});
+    if (!name || name.length > 180 || !category || category.length > 80 || /[\\/\u0000-\u001f\u007f]/.test(name) || /[\u0000-\u001f\u007f]/.test(category)) {
+      await audit({actor:req.user,action:'REQUEST_REJECTED',documentId:req.params.id,result:'denied',metadata:{reason:'invalid_document_details'}});
+      return res.status(400).json({error:'Invalid document details'});
+    }
     // Repeat the current grant check in the write to prevent a revoked editor
     // from updating after revocation commits between lookup and update.
     const edited = await auditedTransaction(async client => {
@@ -222,14 +235,33 @@ app.post('/api/documents', authenticate, requireUploadOwner, parseDocumentUpload
     const pdf = ext === '.pdf' && file.mimetype === 'application/pdf' && file.buffer.subarray(0,5).toString() === '%PDF-';
     const png = ext === '.png' && file.mimetype === 'image/png' && file.buffer.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex'));
     if (!pdf && !png) return await rejectUpload(req,res,'Only PDF and PNG files are supported');
+    const scan = await scanDocument(file.buffer,{url:process.env.MALWARE_SCAN_URL,token:process.env.MALWARE_SCAN_TOKEN,required:secure});
+    if (scan === 'infected') {
+      await audit({actor:req.user,action:'DOCUMENT_UPLOAD',result:'denied',metadata:{reason:'malware_detected'}});
+      return res.status(400).json({error:'File could not be accepted'});
+    }
+    if (scan === 'unavailable') {
+      await audit({actor:req.user,action:'DOCUMENT_UPLOAD',result:'failure',metadata:{reason:'scanner_unavailable'}});
+      return res.status(503).json({error:'File scanning temporarily unavailable'});
+    }
     const id = randomUUID(), key = randomUUID();
-    await storeFile(key, file.buffer);
+    try { await storeFile(key, file.buffer); }
+    catch (error) {
+      await audit({actor:req.user,action:'DOCUMENT_UPLOAD',result:'failure',metadata:{reason:'storage'}});
+      throw error;
+    }
     try {
       await auditedTransaction(async client => {
         await client.query('INSERT INTO documents(id,owner_id,name,category,storage_key,mime_type,size,checksum) VALUES($1,$2,$3,$4,$5,$6,$7,$8)', [id,req.user.id,name,category,key,file.mimetype,file.size,createHash('sha256').update(file.buffer).digest('hex')]);
         await audit({ actor:req.user, action:'DOCUMENT_UPLOAD', documentId:id, result:'success' },client);
       });
-    } catch (error) { await removeFile(key).catch(() => {}); throw error; }
+    } catch (error) {
+      let cleanupFailed = false;
+      try { await removeFile(key); } catch { cleanupFailed = true; }
+      try { await audit({actor:req.user,action:'DOCUMENT_UPLOAD',result:'failure',metadata:{reason:cleanupFailed?'transaction_and_cleanup':'transaction'}}); }
+      catch (auditError) { console.error('Upload failure audit failed:', auditError.code ?? auditError.name); }
+      throw error;
+    }
     res.status(201).json({ id });
   } catch (err) { next(err); }
 });

@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID, createHash } from 'node:crypto';
-import { readFile, writeFile, mkdtemp, rm, readdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdtemp, rm, readdir, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
@@ -129,6 +129,10 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     assert.equal((await (await call(charlie,'/api/documents?name=secret.pdf')).json()).documents.length,1);
     assert.equal((await call(alice,`/api/documents/${id}/permissions`)).status,200);
     for(const body of [{email:'alice@test.invalid',permission:'READ'},{email:'missing@test.invalid',permission:'READ'},{email:'charlie@test.invalid',permission:'ADMIN'}]) assert.equal((await call(alice,`/api/documents/${id}/permissions`,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(body)})).status,400);
+    assert.equal((await call(alice,'/api/documents?from=not-a-date')).status,400);
+    assert.equal((await call(alice,`/api/documents/${id}`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({name:'',category:'private'})})).status,400);
+    const rejectionReasons=(await db.query("SELECT metadata->>'reason' AS reason FROM audit_events WHERE action='REQUEST_REJECTED'")).rows.map(row=>row.reason);
+    for(const reason of ['invalid_permission','invalid_recipient','invalid_search_date','invalid_document_details']) assert.ok(rejectionReasons.includes(reason),`${reason} is audited`);
     for(const attacker of [bob,charlie,adminCookie]) {
       assert.equal((await call(attacker,`/api/documents/${id}/permissions`,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({email:'bob@test.invalid',permission:'EDIT',ownerId:'forged',role:'ADMIN'})})).status,404);
       assert.equal((await call(attacker,`/api/documents/${id}/permissions/${viewerId}`,{method:'DELETE'})).status,404);
@@ -243,6 +247,17 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     await login('admin@test.invalid');
     await run(process.execPath,['scripts/create-checkpoint.js',rotatedPath],{cwd:process.cwd(),env:{...cliEnv,PREVIOUS_AUDIT_CHECKPOINT:initialPath}});
     assert.ok((await readCheckpoint(rotatedPath)).count > (await readCheckpoint(initialPath)).count);
+    const healthEnv={...cliEnv,AUDIT_CHECKPOINT_FILE:rotatedPath};
+    const health=await run(process.execPath,['scripts/check-audit-health.js'],{cwd:process.cwd(),env:healthEnv});
+    assert.equal(JSON.parse(health.stdout).healthy,true);
+    const staleCheckpoint=join(root,'stale-checkpoint.json');
+    await writeFile(staleCheckpoint,await readFile(rotatedPath));
+    const oldTime=new Date(Date.now()-72*60*60*1000);
+    await utimes(staleCheckpoint,oldTime,oldTime);
+    await assert.rejects(run(process.execPath,['scripts/check-audit-health.js'],{cwd:process.cwd(),env:{...healthEnv,AUDIT_CHECKPOINT_FILE:staleCheckpoint}}),error=>JSON.parse(error.stdout).checkpointFresh===false);
+    const invalidCheckpoint=join(root,'invalid-checkpoint.json');
+    await writeFile(invalidCheckpoint,JSON.stringify({version:1,count:0,hash:'f'.repeat(64)}));
+    await assert.rejects(run(process.execPath,['scripts/check-audit-health.js'],{cwd:process.cwd(),env:{...healthEnv,AUDIT_CHECKPOINT_FILE:invalidCheckpoint}}));
     assert.equal((await call(bob,'/api/auth/logout',{method:'POST'})).status,204);
     assert.equal((await call(bob,'/api/auth/me')).status,401);
     await db.query('UPDATE users SET disabled=true WHERE id=$1',[target.rows[0].id]);
