@@ -12,6 +12,7 @@
     "audit:verify": "node scripts/verify-audit.js",
     "audit:health": "node scripts/check-audit-health.js",
     "audit:check-role": "node scripts/check-audit-role.js",
+    "audit:review-role": "node scripts/review-audit-role.js",
     "audit:checkpoint": "node scripts/create-checkpoint.js",
     "storage:reconcile": "node scripts/reconcile-storage.js",
     "check": "node scripts/check-syntax.js",

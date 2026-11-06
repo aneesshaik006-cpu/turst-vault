@@ -220,6 +220,18 @@
   unverified; local tests do not establish those boundaries.
 - Implementation: [aa78e3e](https://github.com/aneesshaik006-cpu/turst-vault/commit/aa78e3e).
 
+## 2026-11-06 — staging role review preparation
+
+- User direction: Continue the remaining audit and deployment phases.
+- Finding: A table-level `safe` diagnostic did not enumerate executable
+  `SECURITY DEFINER` routines or reachable roles, so it could not support the
+  required escalation review by itself.
+- Work and verification: Added a read-only inventory command and tested it with
+  a synthetic restricted role and definer function. The local PostgreSQL suite
+  passed 20 tests. The staging connection was unavailable, so this is preparation
+  for an independent review, not proof that staging has no escalation path.
+- Implementation: uncommitted at the time of writing.
+
 ## 2026-11-06 — scanner, staging credentials and AI mistake
 
 - User direction: Complete staging security, use a dummy service for tests when

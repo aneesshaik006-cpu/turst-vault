@@ -96,3 +96,14 @@ DEFINER functions, extension privileges, the host, backups, or whether an
 independent checkpoint is protected. An operator must review those paths and
 run the staging tests above; do not interpret `safe: true` alone as deployment
 approval.
+
+For a read-only inventory of reachable role memberships and executable non-system
+`SECURITY DEFINER` routines in the connected database, run `npm run
+audit:review-role` with the runtime credential. It reports routine names,
+signatures, owners and configuration, not definitions. Have an independent
+operator inspect each routine's definition, search path, dynamic SQL and owner
+privileges, as well as administrative and provider-specific escalation paths.
+The inventory excludes `pg_catalog` and `information_schema` routines and other
+databases; it can miss indirect or dynamic escalation and cannot establish host,
+backup or checkpoint isolation. A safe table diagnostic does not approve the
+inventory. Output can disclose infrastructure details; store it securely.

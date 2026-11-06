@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import pg from 'pg';
 import { hashPassword } from '../src/auth-crypto.js';
-import { checkAuditRole } from '../src/audit-role-check.js';
+import { checkAuditRole, inspectAuditEscalation } from '../src/audit-role-check.js';
 const url=process.env.TEST_DATABASE_URL;
 test('separate local runtime role can append but cannot rewrite audit history', {skip:!url?'Set TEST_DATABASE_URL to a disposable PostgreSQL database':false},async()=>{
   const suffix=randomUUID().replaceAll('-','');
@@ -26,10 +26,16 @@ test('separate local runtime role can append but cannot rewrite audit history', 
     await admin.query(template.replaceAll(':"schema_name"',`"${schema}"`).replaceAll(':"app_role"',`"${app}"`));
     await admin.query(`GRANT USAGE ON SCHEMA ${schema} TO ${reader}`);
     await admin.query(`GRANT SELECT ON ${schema}.audit_events TO ${reader}`);
+    await admin.query(`CREATE FUNCTION ${schema}.security_review_fixture() RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1'`);
     const password=await hashPassword('local-role-test-password');
     await admin.query(`INSERT INTO ${schema}.users(id,email,password_hash,role) VALUES($1,$2,$3,'OWNER')`,[randomUUID(),'role-owner@test.invalid',password]);
     await admin.query(`SET ROLE ${app}`);
     assert.equal((await checkAuditRole(admin)).safe,true,'restricted runtime role passes effective privilege check');
+    const review=await inspectAuditEscalation(admin);
+    assert.equal(review.identity.role,app);
+    assert.equal(review.requiresManualReview,true);
+    assert.ok(review.reachableRoles.some(role=>role.role===app));
+    assert.ok(review.executableSecurityDefiners.some(fn=>fn.schema===schema && fn.routine==='security_review_fixture'));
     await admin.query(`INSERT INTO ${schema}.audit_events(event_id,occurred_at,action,result,previous_hash,current_hash) VALUES($1,now(),'TEST','success',$2,$3)`,[randomUUID(),'0'.repeat(64),'1'.repeat(64)]);
     assert.equal((await admin.query(`SELECT count(*)::int AS n FROM ${schema}.audit_events`)).rows[0].n,1);
     for(const sql of [`UPDATE ${schema}.audit_events SET action='TAMPERED'`,`DELETE FROM ${schema}.audit_events`,`TRUNCATE ${schema}.audit_events`,`ALTER TABLE ${schema}.audit_events DISABLE TRIGGER ALL`]) await assert.rejects(admin.query(sql),{code:'42501'});

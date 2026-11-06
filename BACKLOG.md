@@ -5,6 +5,9 @@
 - A non-owner runtime role is configured on the staging database and passed the
   effective audit-role diagnostic. Independently review inherited roles,
   SECURITY DEFINER functions and administrative escalation paths in staging.
+  The local read-only `npm run audit:review-role` command inventories reachable
+  roles and executable non-system security-definer routines for manual review;
+  it has not been run with the staging connection.
 - Provision independently administered, tamper-resistant checkpoint storage and
   an operator identity the application and database host cannot control.
 - Schedule and monitor checkpoint verification and rotation; test recovery and
