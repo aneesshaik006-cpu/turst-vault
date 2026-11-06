@@ -203,3 +203,35 @@
   isolated screen-and-narration recording tool was available. No staging or
   independent human review was claimed.
 - Commit verified: `92c4603c5eb9069523fcc8050e8c04241a53847e`.
+
+## 2026-11-06 — revocation and audit operations
+
+- User direction: Complete the remaining revocation and audit-protection work,
+  then use disposable resources when real independent infrastructure was not
+  available.
+- Problem found: A browser test had stopped after revocation but before the edit
+  was submitted; treating the API test as proof of the browser flow would have
+  overstated the evidence. Audit verification also had no dedicated checkpoint
+  freshness check for a scheduler.
+- Work and verification: Re-ran the open-edit browser scenario through denial,
+  old download denial and refresh. Added a checkpoint health command and local
+  tests, including stale and mismatched checkpoints. A separate operator account,
+  independent checkpoint storage, scheduler and actual alert delivery remain
+  unverified; local tests do not establish those boundaries.
+- Implementation: [aa78e3e](https://github.com/aneesshaik006-cpu/turst-vault/commit/aa78e3e).
+
+## 2026-11-06 — scanner, staging credentials and AI mistake
+
+- User direction: Complete staging security, use a dummy service for tests when
+  necessary, and prepare a judge-accessible deployment.
+- Mistake: The assistant printed the shared staging-only demo password while
+  trying to inspect a credential file. It disclosed the mistake and did not make
+  the protected preview judge-accessible with those credentials. The user did
+  not independently discover this error; the assistant identified it.
+- Work and verification: Added a production-mode fail-closed HTTPS scan contract,
+  an ephemeral mock-scanner integration test, read-only storage reconciliation,
+  and a transactional staging-demo password rotation command. The full local
+  PostgreSQL suite passed 20 tests. The mock is not a malware engine; no scanner
+  service or staging owner connection was available, so the real password has
+  not been rotated and the new scanner code has not been deployed.
+- Implementation: [aa78e3e](https://github.com/aneesshaik006-cpu/turst-vault/commit/aa78e3e).
