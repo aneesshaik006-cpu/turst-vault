@@ -1,181 +1,53 @@
-# TrustVault — work in progress
+# TrustVault
 
-This repository is not ready for storing sensitive documents or for deployment.
-The current implementation consists of authentication primitives, initial
-PostgreSQL schema and migration runner, authentication endpoints, a basic document
-workspace and local PDF/PNG upload and download. Basic permission management, search, editing and deletion endpoints have been added.
-Independent audit protection, complete security hardening and production deployment remain incomplete.
-No end-to-end security claim is
-made. See [REPOSITORY-AUDIT.md](REPOSITORY-AUDIT.md) and [THREATS.md](THREATS.md).
+TrustVault is a document-sharing demo built with Express and PostgreSQL. Owners can upload PDF or PNG files, organize and search documents, and grant or revoke access. Viewers can open documents shared with them; administrators can review activity without gaining document access.
 
-## Development prerequisites
+The [live demo](https://trustvault-stage-9d4d7e4f.vercel.app/) is intended for synthetic files only. Request the demo credentials privately. Its Preview deployment explicitly permits unscanned uploads, so it must not be used for sensitive documents or treated as production-ready.
 
-The ignored `.env` file can be created from `.env.example` and filled with
-environment-specific values. Node does not load it automatically in this
-project; for example, start the app with `node --env-file=.env src/server.js`.
-Keep application, staging-owner, and independent audit-operator credentials
-separate; supply privileged credentials only to the relevant operator command.
-Placeholders do not provision a scanner, backup, scheduler, alerts, or protected
-checkpoint storage.
+## Features
 
-Node.js 22 and a PostgreSQL database are required. The scanner integration test
-also requires the `openssl` command to generate a temporary mock TLS certificate.
-Install with `npm ci`. Set
-`DATABASE_URL` to a dedicated PostgreSQL database connection string and
-`APP_ORIGIN` to the exact browser origin, e.g. `http://localhost:3000`.
-Run `npm run migrate`, set a unique demo-only `DEMO_PASSWORD` of at least 12
-bytes, and run `npm run seed`. Start the server with `npm start`. The server
-binds only to loopback. Migrations have been applied to a local development database.
+- Email/password login with server-side sessions and role-based access.
+- Owner-managed READ and EDIT grants, with access checked on each request. EDIT allows name and category changes; it does not replace file contents.
+- PDF and PNG upload validation, search, metadata editing, deletion, and an administrator activity view.
+- Hash-chained audit events, verification tools, and a restricted database role. Independent checkpoint storage and monitoring still need to be set up.
 
-The seed creates admin, owner, bob, viewer and dave accounts at
-`@trustvault.demo`; it is disabled in production. Existing accounts are not
-updated by reseeding. Never use a demo password for real data.
+## Run locally
 
-Unsafe requests require an exact `Origin` match. Sessions use random bearer
-cookies, with only their hash stored in PostgreSQL. Cookies are HTTP-only,
-SameSite Strict, and Secure when `NODE_ENV=production`. Document listing, upload, download, grant, revoke, edit and deletion endpoints are available, with a 100-document listing limit.
+Requirements: Node.js 22, PostgreSQL, and OpenSSL for the scanner integration test.
 
-Audit events are hash chained. A restricted runtime database role has been
-checked in staging, but independently protected checkpoints are not configured.
-A database owner can alter or rewrite the chain, so it is not immutable. Do not
-treat the audit system as production-ready.
+1. Run `npm ci`.
+2. Copy `.env.example` to `.env` and configure `DATABASE_URL` and `APP_ORIGIN` for your local environment. Keep credentials out of version control.
+3. Load the environment before running the migration and seed commands. For example:
 
-## Local demo database
+   ```sh
+   node --env-file=.env scripts/migrate.js
+   # Set DEMO_PASSWORD to a unique local-only password before running the seed.
+   node --env-file=.env scripts/seed.js
+   node --env-file=.env src/server.js
+   ```
 
-For a local-only preview on supported systems, `npm run db:local` starts the
-bundled development PostgreSQL on 127.0.0.1:55432 and stores data in the ignored
-`.local/postgres` directory. Set `LOCAL_DB_PASSWORD` to a unique local-only value of at least 16 bytes before
-starting it. This setting does not change the password of an already initialized
-cluster: use its existing password or migrate it deliberately. Do not expose the
-database or use it for sensitive data.
-With the local database running, set `DATABASE_URL` to its connection string,
-containing the local username, URL-encoded password and `127.0.0.1:55432/postgres`.
-Run `npm run migrate`, set a unique demo-only `DEMO_PASSWORD`, and run `npm run
-seed`. Run the app with `PORT=4173 APP_ORIGIN=http://127.0.0.1:4173 npm start`
-and the same `DATABASE_URL`. The seeded owner is `owner@trustvault.demo` with
-the password you supplied in `DEMO_PASSWORD`. Seed does not reset existing passwords. The basic workspace is available, but document management and security verification remain incomplete.
+4. Open the configured `APP_ORIGIN`. The seed creates `admin`, `owner`, `bob`, `viewer`, and `dave` accounts at `@trustvault.demo`; it does not replace passwords for existing accounts.
 
-## Vercel preparation (not yet deployment-ready)
+For a local PostgreSQL instance, see the `db:local` script and `.env.example`. The application does not automatically load `.env` when started with `npm start`.
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for staging prerequisites and verification.
+## Checks
 
-The Express application exports its app for Vercel and supports a private Vercel
-Blob store when `STORAGE_DRIVER=vercel-blob` and `BLOB_READ_WRITE_TOKEN` are set.
-Production startup fails if private Blob storage is not configured. Connect a
-managed PostgreSQL database using `DATABASE_URL`, set `APP_ORIGIN` to the exact
-HTTPS origin, and run migrations using appropriately separated database roles.
-Vercel Functions limit request and response sizes, so uploads are capped at 4 MiB.
-Selected staging Blob, cookie and authorization checks have passed as recorded in
-`DEPLOYMENT.md`; production controls, proxy identity and independent checkpoint
-protection remain unverified. In this local code, production-mode uploads fail
-closed without the configured HTTPS scanner described in `STORAGE-POLICY.md`.
-The scanner integration is not yet deployed or backed by a verified service.
-Do not deploy this build for confidential documents.
+- `npm run build` runs syntax and focused Biome lint checks.
+- `npm test` runs the test suite. Set `TEST_DATABASE_URL` to a disposable PostgreSQL database to include the integration tests; otherwise they are skipped. The role test requires a database account with `CREATEROLE`.
+- `npm run audit:verify` verifies the audit chain using `DATABASE_URL`. A trusted, independently held checkpoint is needed to detect changes to previously recorded history.
 
-## Audit-chain verification
+The local database suite passed 24 tests without skips on 2026-11-07. A live synthetic API flow also verified upload, grant, download, edit, search, revocation and administrator access controls. These checks do not establish full deployment security.
 
-Set `DATABASE_URL` to the intended database and run `npm run audit:verify`.
-The command validates links and event hashes and prints the observed event count
-and head hash. It only supports the application's current flat metadata values;
-unsupported metadata makes verification fail. To detect truncation against a
-previously saved checkpoint, supply both `AUDIT_CHECKPOINT_COUNT` and
-`AUDIT_CHECKPOINT_HASH`. Save checkpoints in an independently protected location.
-Without a trusted checkpoint, a truncated tail or fully rewritten chain can
-verify. A privileged database owner can rewrite history, so the chain is not
-immutable. Do not run verification on a confidential or production database
-without appropriate authorization.
+## Deployment and security notes
 
-## Operator-held checkpoints
+The demo currently stores files in private Vercel Blob. A Neon storage driver is present in the working tree but has not completed live verification or cutover. The Preview has an explicit demo-only scanner bypass; a production deployment requires a configured scanner. Upload cleanup is best effort because storage and database writes are separate operations.
 
-The database application role does not itself control an external file, but the
-file is only independently protected if an operator uses a **separate OS/service
-identity and storage** that neither the application process nor the database
-server can modify. These identities and access policies are not provisioned by
-this project. A database administrator or host administrator may still bypass
-controls within their own trust boundary.
+The audit chain is not immutable: privileged database access can rewrite it, and a checkpoint cannot protect events added after it. Independent checkpoint custody, monitoring, backups, trusted proxy identity, and several deployment checks remain open. The database-owner credential disclosed during setup also needs rotation and coordinated updates to dependent connections.
 
-After independently validating the initial audit history, an authorized operator
-with read-only audit database credentials can create the first checkpoint with
-`npm run audit:checkpoint -- --initial /operator-controlled/new-checkpoint.json`. The file
-is created exclusively; an existing checkpoint is never overwritten. Protect and
-back it up independently. For each later checkpoint, set
-`PREVIOUS_AUDIT_CHECKPOINT` to the last trusted file and write to a *new* path;
-the command verifies that prefix first. Verify with
-`AUDIT_CHECKPOINT_FILE=/operator-controlled/checkpoint.json npm run audit:verify`.
-Keep the latest trusted checkpoint and earlier backups in a separate access domain.
-If verification fails, stop, preserve database and checkpoint evidence, and
-investigate; do not replace the checkpoint with a newly observed head. If a
-checkpoint is lost, restore a trusted backup or treat the history since the last
-trusted checkpoint as unverified. A compromised application may still append
-false events, and truncation after the latest checkpoint remains undetectable.
+## Project notes
 
-## Shared login throttle
-
-Migration `002_login_throttle.sql` stores fixed-window counters in PostgreSQL.
-All instances sharing that database enforce 20 sign-in attempts per direct socket
-peer in 15 minutes. If PostgreSQL is unavailable, login returns 503. Forwarded
-headers are deliberately not trusted: behind a proxy, users can share a limit and
-cause availability problems. Configure and test a platform-specific trusted-client
-identity before deploying. An operator must also arrange cleanup of old counter
-rows. `test/throttle.integration.test.js` checks two local instances and failure.
-
-## Local verification
-
-`npm run check` checks JavaScript syntax; it is not a linter or type checker. Set
-`TEST_DATABASE_URL` to a dedicated disposable PostgreSQL database, then run
-`npm test`. Integration tests create and remove temporary schemas; omitting the
-variable skips them. `npm run lint` runs the focused Biome checks described below;
-there is no configured production build or typecheck script. The local setup above is a demo procedure, not a verified
-production deployment procedure.
-
-The explicit staging setup and evidence needed to establish checkpoint and
-database-role separation are in `CHECKPOINT-OPERATIONS.md`. The application has
-not provisioned or verified these identities.
-
-Vercel documents its forwarding headers at
-https://vercel.com/docs/headers/request-headers. The local implementation ignores
-all forwarding headers and uses the direct socket peer; this avoids trusting
-spoofed headers but has not established client-level limiting behind Vercel. An
-authorized staging test must verify actual proxy behavior, trusted-address
-configuration, bypass attempts and shared counters before deployment readiness.
-
-## Meaning of EDIT
-
-Currently EDIT permits reading/downloading a document and changing its name and
-category through the metadata API. It does **not** permit file-content replacement,
-deletion, or permission management. The user selected metadata-only as the working scope unless an authoritative
-requirement says otherwise; file-content editing is not implied or implemented.
-
-`ops/grant-runtime-privileges.sql` is an operator-reviewed psql grant template.
-It must be run by an independent migration owner with the `schema_name` and
-`app_role` variables set. The runtime role must already exist and must not own
-objects, be a superuser, or inherit privileged roles. The script is not applied
-automatically and does not provision checkpoint identities or production roles.
-
-See `ROUTE-AUTHORIZATION.md` for the current route/role matrix, `API.md` for the
-API reference, `STAGING-TEST-PLAN.md` for the remaining service checks,
-and `CLEAN-CLONE.md` for the future approved-clone procedure.
-
-The role integration test creates and removes unique temporary PostgreSQL roles;
-the dedicated test database account needs CREATEROLE privilege. Never use a
-production account or database for this test. `npm test` without a configured
-`TEST_DATABASE_URL` skips the database integration tests.
-
-Storage keys must be generated lowercase UUIDv4 identifiers; local storage tests
-exercise invalid keys, duplicate creation and removal. This is defense in depth,
-not a substitute for protecting the database or storage backend. A file write and
-its database transaction are separate resources: failure cleanup is best effort
-and the read-only `npm run storage:reconcile` command reports candidate
-discrepancies without deleting objects. See `STORAGE-POLICY.md` for its limits.
-
-## Lint, type and build scope
-
-`npm run lint` runs Biome on project JavaScript with the explicitly selected
-rules in `biome.json`: undeclared variables, unreachable code, unused imports,
-global eval, debugger statements and duplicate object keys. It is a focused
-lint check, not an exhaustive security analysis. `npm run check` remains a
-separate syntax check. This JavaScript project has no TypeScript typecheck or
-compiled frontend build configured; adding superficial pass-through scripts
-would not establish either. A real Vercel production build remains unverified.
-`DEMO-SCRIPT.md` is a proposed narrated script; it is not a recording.
-# turst-vault
+- [API reference](API.md) and [authorization matrix](ROUTE-AUTHORIZATION.md)
+- [Threat model](THREATS.md) and [storage policy](STORAGE-POLICY.md)
+- [Submission status](SUBMISSION-STATUS.md) and [outstanding work](BACKLOG.md)
+- [Deployment notes](DEPLOYMENT.md) and [audit operations](CHECKPOINT-OPERATIONS.md)
+- [Test report](FINAL-TEST-REPORT.md), [demo script](DEMO-SCRIPT.md), and [AI-assisted development history](PROMPTS.md)

@@ -1,99 +1,25 @@
-# Threat model — development build
+# Threat model
 
-TrustVault is not production-ready. No system can recall bytes already downloaded,
-and requests authorized before revocation commits may remain in flight. Future
-requests query current database grants. Document and permission mutations now commit with their audit events; a tested optional runtime-role grant template can restrict direct audit mutation, but production roles are not configured. Do not store confidential documents in this build.
+TrustVault is a synthetic-data document-sharing demo. Its main assets are document contents and metadata, account sessions, permissions, and audit records. The browser is untrusted: every document operation must use the current server-side identity and grant. The application database role and file store are separate from the end user. A database owner, storage administrator, or compromised application has greater access than a normal user.
 
-| Threat / attack | Asset and impact | Current mitigation / test | Residual risk / disposition |
-|---|---|---|---|
-| BOLA / IDOR | Another user guesses an ID to download or modify a document. | Server-side current owner/grant check; HTTP isolation scenario in `test/security.integration.test.js`. | Not all routes and adversarial inputs have been tested; not accepted. |
-| Revoked access | A previously granted user reuses a URL or searches. | Server reads grant for each request; HTTP scenario verifies denial after revoke. | In-flight responses and already downloaded files cannot be recalled; accepted limitation, remaining concurrency behavior unverified. |
-| Privilege escalation | Viewer calls admin or permission API. | Server checks role or owner; integration scenario checks non-admin and unrelated owner. | Full role and parameter matrix incomplete; not accepted. |
-| Search metadata leak | Search reveals hidden filenames, categories, dates or owners. | SQL scopes by owner/grant before filtering; integration scenario tests a hidden exact filename. | Pagination/counts and all filter combinations not fully tested; not accepted. |
-| Malicious uploads / traversal / resource exhaustion | Dangerous files or malformed filenames compromise storage or consume resources. | Upload size limit, random keys, private directory, extension/MIME/signature checks. | Signature checks do not prove a file is safe; malware scanning and full negative tests absent; not accepted. |
-| Session theft, fixation, CSRF, brute force | Attacker uses stolen session or induces state change. | Random session, hashed token storage, HttpOnly/SameSite cookies, Origin check, login rate limit. | Shared PostgreSQL throttling was tested across two local instances; proxy identity, abuse controls and complete integration tests remain unverified; not accepted. |
-| SQL injection, metadata XSS | User-supplied input changes queries or executes script in another browser. | Parameterized SQL and text-based DOM rendering. | Full injection and browser security testing incomplete; not accepted. |
-| Audit modification, deletion, truncation | Attacker changes or erases evidence. | App appends hash-linked events with serialized writers; an operator can write a checkpoint outside PostgreSQL. | A verifier checks links and hashes and accepts an independently stored checkpoint; a local test role cannot mutate historical audit rows; no protected checkpoint or production DB roles are configured. Without a trusted checkpoint, whole-chain rewrite and tail truncation can pass; not accepted. |
-| Database administrator or backup compromise | An operator reads files or rewrites data and logs. | Storage is outside public web root and protected by local filesystem permissions. | Database/host admins and backups remain trusted; no encryption or external checkpoint; not accepted. |
-| Deployment, secrets, CORS and cache | Misconfiguration exposes sessions or files. | Same-origin routes, no-store responses, security headers; production requires HTTPS origin. | No deployed environment or production verification; local demo credentials are not production credentials; not accepted. |
+## Threats, controls and evidence
 
-Vercel preparation adds an optional private Blob adapter. It has not been tested
-against a real Blob store. The shared PostgreSQL login limiter fails closed when its store is unavailable.
-It keys on the direct socket peer, which may aggregate users behind Vercel
-proxies; trusted proxy configuration and availability effects remain unverified. Database connection pooling, environment configuration,
-private storage isolation and the Vercel payload limit require deployed tests.
+| Threat | Control and evidence | Remaining risk |
+|---|---|---|
+| An unrelated user guesses a document ID or searches for its name | The API checks ownership or the current grant. `test/security.integration.test.js` covers unrelated owners, viewers, administrators and search isolation. | Not every input and request interleaving is covered. |
+| A revoked user reuses an old link or an open edit form | Permissions are checked on requests and repeated in the metadata update. Integration and browser revocation tests cover post-revocation denial. A deployed synthetic API flow also passed on 2026-11-07. | Already downloaded files and requests authorized before revocation cannot be recalled. |
+| A viewer escalates privileges or an administrator reads files | Permission management is owner-only and admin access does not imply document access. Tests and the deployed synthetic flow check denial. | A compromised privileged database or app identity is outside these checks. |
+| An attacker sends forged sessions, cross-origin requests or repeated logins | Random session tokens are stored as hashes; cookies use HttpOnly and SameSite, with Secure in production mode. Unsafe requests require the configured Origin. Database-backed throttling fails closed. | The limiter uses the direct socket peer; client identity behind Vercel and availability under abuse need validation. |
+| A malicious or oversized upload reaches storage | Uploads have size, extension, MIME and signature checks; generated UUID keys prevent path selection. Integration tests cover invalid files and local cleanup after an insert failure. | Signatures are not malware detection. The public Preview deliberately allows unscanned uploads for the synthetic demo; no real scanner is provisioned. Blob cleanup on failure is unverified. |
+| Stored content is altered | Downloads compare stored bytes against the database size and checksum, and use attachment responses. | An administrator able to alter both the object and its database checksum can defeat this check. |
+| Audit records are changed or truncated | Mutations and success audit events share database transactions. Events are hash chained. `test/checkpoint.test.js` covers detection against a prior trusted checkpoint; local role tests deny updates, deletes and truncation. | A database owner can rewrite the chain; without an independently held checkpoint a rewrite or tail truncation can go undetected. A compromised app can append misleading events. |
+| Runtime database privileges permit escalation | A restricted staging role passed `audit:review-role` on 2026-11-07. Its read-only inventory reported one reachable role and no executable non-system security-definer routines. | This diagnostic does not prove the absence of other escalation paths or independent checkpoint protection. |
+| Secrets or configuration expose data | Secrets are excluded from the repository and staging uses a restricted runtime database role. | A database-owner password was exposed during setup and needs coordinated rotation. Independent encrypted backups and alerting are not verified. |
+| Malicious input produces SQL injection or stored XSS | Queries use parameters and UI rendering uses text-based DOM operations. | Full injection and browser security coverage has not been established. |
+| Abuse fills the audit log or object store | Audit capacity and storage reconciliation commands report thresholds and discrepancies. | Independent schedules, alerting, retention, and recovery procedures are not configured. |
 
-The HTTP regression scenario now also rejects missing and forged sessions,
-cross-origin login, executable files, MIME/signature mismatch, empty uploads,
-path traversal names and oversized uploads. A temporary-copy mutation experiment
-confirmed that bypassing the authorization policy causes the unauthorized
- download assertion to fail. These checks do not replace the remaining attack
-matrix or a deployed test.
+## Verification scope
 
-The isolated open-viewer-session browser procedure in
-`BROWSER-REVOCATION-TEST.md` showed that a previously rendered download link was
-denied after a separate owner request revoked the grant and that refreshing the
-viewer workspace removed the row. The idle page displayed preloaded metadata
-until refresh; no previously downloaded file or in-flight response was recalled.
-The application ignores forwarding headers; a local two-instance test verifies
-that varied spoofed and malformed values do not create separate throttle buckets.
-Vercel's documented proxy behavior still requires an authorized staging check.
+On 2026-11-07 the complete local suite passed 24 tests against a disposable PostgreSQL database with no skips. The live synthetic API flow verified owner upload, pre-grant denial, EDIT grant, download, metadata edit, search, revocation, post-revoke denial and administrator access control. The test document was soft-deleted; soft deletion intentionally retains the storage object.
 
-Local test-role evidence: `test/audit-role.integration.test.js` applies
-`ops/grant-runtime-privileges.sql` to a synthetic schema and temporary non-owner
-roles. It checks that the runtime role can append/read but cannot update, delete,
-truncate or alter audit events, and that a separate reader cannot append. A local
-API process assuming the runtime role completed login and synthetic upload. These
-checks do not establish production role membership or operator filesystem
-separation, and a compromised runtime role can still append misleading events.
-
-Storage access now accepts only generated UUIDv4 keys, reducing the risk of a
-corrupt database key being interpreted as a filesystem path. `test/storage.test.js`
-checks local storage; this does not prove private Blob access or defend against a
-compromised application or host. If an audit/database insert fails after local
-file creation, the API attempts cleanup; an integration test confirms cleanup
-when that removal succeeds. A failed cleanup or process interruption can still
-leave an orphaned file, and Blob cleanup has not been tested.
-
-Upload denial handling now writes a `DOCUMENT_UPLOAD` denied event for invalid
-files, role denials and malformed multipart input. Non-owner authorization occurs
-before multipart parsing. The HTTP integration scenario tests the response and
-actor/reason evidence, and checks that audit-store failure returns 500 rather
-than treating a denied upload as successful. Some validation failures and storage
-exceptions are not comprehensively audited.
-
-Unauthenticated document requests now create denied events with no verified
-actor; malformed document IDs are recorded without the raw input. Tokens and
-request bodies are not included. A download fails closed if its audit event
-cannot be written. Unauthenticated traffic can be abused to consume audit
-storage and serialize database writes; edge-level abuse controls and retention
-have not been implemented or verified. Rejected origins, JSON parser errors and
-throttled logins are now recorded without request bodies or credentials, but
-their pre-authentication events cannot establish a verified actor identity.
-
-The local embedded database launcher now requires a separately supplied local-only
-password and refuses `NODE_ENV=production`. Changing the environment setting does
-not rotate an existing initialized database account. Synthetic browser fixtures
-still use documented test-only credentials and must remain local and disposable.
-
-The focused Biome lint check covers selected correctness/security rules only;
-it does not replace authorization tests, full static analysis, or browser and
-staging verification. See `biome.json` for the exact enabled rules.
-
-### Reciprocal local owner isolation
-
-The HTTP integration scenario now also creates a second owner's synthetic file
-and checks that the first owner cannot download, edit, delete, enumerate its
-permissions or discover it by name. This was verified against an isolated local
-PostgreSQL schema. It does not establish deployed infrastructure isolation or
-protect a document already downloaded by an authorized user.
-
-### Post-revocation regression (2026-11-05)
-
-After the revoke response confirms the database commit, the HTTP integration
-test reuses the viewer's still-valid session and old URL for concurrent
-downloads, metadata edits and searches. Downloads and edits are denied, search
-hides the document, and denied edits do not alter its stored name. Requests
-already authorized before the commit can still finish. The expanded open-edit
-browser procedure is documented in `BROWSER-REVOCATION-TEST.md`; this regression
-does not verify a deployed system or demonstrate every possible interleaving.
+A private Vercel Blob object was previously tested for unauthenticated denial, authenticated reading and deletion. The Neon storage driver has not completed a live round trip or cutover. These checks are evidence for the stated scenarios, not proof against every attack. Do not use confidential files in the demo.

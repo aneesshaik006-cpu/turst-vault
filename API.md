@@ -8,10 +8,10 @@ not yet production-ready and this reference does not prove deployed behavior.
 
 | Method / path | Authorization and request | Response | Audit behavior |
 |---|---|---|---|
-| POST `/api/auth/login` | JSON `email`, `password`; shared peer throttle | 200 user and session cookie; generic 401 for bad credentials; 429 limit; 503 store unavailable | LOGIN or LOGIN_FAILED; not all rejected origins/rate limits are audited |
+| POST `/api/auth/login` | JSON `email`, `password`; shared peer throttle | 200 user and session cookie; generic 401 for bad credentials; 429 limit; 503 store unavailable | LOGIN or LOGIN_FAILED; rejected origins and throttled attempts are also audited |
 | GET `/api/auth/me` | Authenticated | 200 current user | None |
 | POST `/api/auth/logout` | Authenticated | 204, clears session cookie | LOGOUT |
-| GET `/api/documents` | Authenticated; optional `name`, `owner`, `category`, `from`, `to` query strings | 200 accessible documents, max 100; malformed date 400 | None |
+| GET `/api/documents` | Authenticated; optional `name`, `owner`, `category`, `from`, `to` query strings | 200 accessible documents, max 100; invalid calendar date or reversed range 400 | Invalid dates are audited |
 | POST `/api/documents` | OWNER; multipart `file` and `category`, PDF/PNG up to 4 MiB | 201 id; invalid 400, oversized 413, role 403 | DOCUMENT_UPLOAD on success; denied role, invalid file, size-limit and malformed multipart attempts are audited |
 | GET `/api/documents/:id/download` | Owner or current READ/EDIT grant | 200 attachment; unauthorized/deleted 404 | DOCUMENT_DOWNLOAD; ACCESS_DENIED for valid inaccessible ID |
 | PATCH `/api/documents/:id` | Owner or current EDIT; JSON `name`, `category`; file contents cannot be replaced | 204; invalid 400; unauthorized/deleted 404 | DOCUMENT_EDIT or ACCESS_DENIED for valid inaccessible ID |

@@ -9,7 +9,8 @@ import multer from 'multer';
 import { randomUUID, createHash } from 'node:crypto';
 import { storeFile, removeFile, loadFile } from './storage.js';
 import { canAccessDocument } from './authorization.js';
-import { scanDocument } from './malware-scan.js';
+import { scanDocument, scannerRequired } from './malware-scan.js';
+import { isSearchDate } from './search-date.js';
 
 const app = express();
 const origin = process.env.APP_ORIGIN;
@@ -88,7 +89,7 @@ app.get('/api/documents', authenticate, async (req, res, next) => {
   try {
     const value = key => typeof req.query[key] === 'string' ? req.query[key].trim().slice(0, 120) : '';
     const name = value('name'), owner = value('owner'), category = value('category'), from = value('from'), to = value('to');
-    if ((from && !/^\d{4}-\d{2}-\d{2}$/.test(from)) || (to && !/^\d{4}-\d{2}-\d{2}$/.test(to))) {
+    if ((from && !isSearchDate(from)) || (to && !isSearchDate(to)) || (from && to && from > to)) {
       await audit({actor:req.user,action:'REQUEST_REJECTED',result:'denied',metadata:{reason:'invalid_search_date'}});
       return res.status(400).json({error:'Invalid date'});
     }
@@ -241,7 +242,7 @@ app.post('/api/documents', authenticate, requireUploadOwner, parseDocumentUpload
     const pdf = ext === '.pdf' && file.mimetype === 'application/pdf' && file.buffer.subarray(0,5).toString() === '%PDF-';
     const png = ext === '.png' && file.mimetype === 'image/png' && file.buffer.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex'));
     if (!pdf && !png) return await rejectUpload(req,res,'Only PDF and PNG files are supported');
-    const scan = await scanDocument(file.buffer,{url:process.env.MALWARE_SCAN_URL,token:process.env.MALWARE_SCAN_TOKEN,required:secure});
+    const scan = await scanDocument(file.buffer,{url:process.env.MALWARE_SCAN_URL,token:process.env.MALWARE_SCAN_TOKEN,required:scannerRequired(process.env)});
     if (scan === 'infected') {
       await audit({actor:req.user,action:'DOCUMENT_UPLOAD',result:'denied',metadata:{reason:'malware_detected'}});
       return res.status(400).json({error:'File could not be accepted'});

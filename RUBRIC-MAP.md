@@ -1,8 +1,21 @@
 # Evaluation rubric and evidence
 
-The six criteria below are the rubric supplied by the user. No additional scoring
-weights are assumed. Current evidence is local and incomplete; this is not a
-judge's score.
+The six criteria below are the rubric supplied for the project. The status in
+this section reflects the demo as of 2026-11-07; it is not a judge's score.
+
+| Criterion | Evidence | Remaining gap |
+|---|---|---|
+| Security (35) | Authorization and throttling tests; deployed revocation and private Blob checks; staging role diagnostic | Independent checkpoint custody, proxy identity, scanner and broader deployed attack coverage |
+| Threat thinking (15) | `THREATS.md`, audit tests and operational runbooks | Some deployment trust boundaries are not yet verified |
+| Functionality (15) | Local API and browser scenarios; deployed synthetic upload, grant, edit, search, revoke and admin checks | Full narrated demo and every error path have not been verified together |
+| Use of AI (15) | `PROMPTS.md` records requests, findings, corrections and limitations | The record is not a claim of independent human review |
+| Engineering quality (10) | Tests, migrations, restricted database role, syntax and focused lint checks | No typecheck; additional integration and race coverage remains |
+| Documentation, deployment, demo (10) | README, API, threat model, runbooks and a live Preview | Complete narrated demo and production controls remain open |
+
+## Historical evidence
+
+The sections below are dated development snapshots. Their references to missing
+deployments, tests, or commits describe the state at the time of each entry.
 
 | Criterion | Required evidence | Current artifact | Gap |
 |---|---|---|---|

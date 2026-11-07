@@ -1,8 +1,8 @@
-# Proposed narrated demo — synthetic local environment
+# Proposed narrated demo — synthetic data
 
 This is a script to rehearse and record; it is **not** a recording or proof that
-every step was rehearsed. Use the isolated fixture described in README and
-BROWSER-REVOCATION-TEST.md, synthetic accounts and a synthetic PDF only. Keep a
+every browser step was rehearsed. Use the live demo or the isolated fixture
+described in BROWSER-REVOCATION-TEST.md, synthetic accounts and a synthetic PDF only. Keep a
 second isolated browser session for the viewer. Do not use confidential files or
 show credentials. Check each step in the actual environment before recording.
 
@@ -22,4 +22,5 @@ show credentials. Check each step in the actual environment before recording.
 
 If any step fails or is unsupported, pause and fix or mark it incomplete instead
 of presenting it as working. A real staged deployment and its security behavior
-must be verified separately with explicit user authorization.
+must be verified separately. The live Preview accepts unscanned synthetic uploads;
+it is not suitable for confidential files.

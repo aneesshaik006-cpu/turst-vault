@@ -15,7 +15,7 @@ access. Frontend role checks are only presentation.
 | POST `/api/auth/logout` | 204 | 204 | 204 | 204 | 204 | 401 | Logout invalidation checked; every role not individually checked. |
 | GET `/api/documents` | Own and granted | Granted | Granted | No hidden rows | Own/granted only | 401 | Exact hidden filename and revocation checked; all filters/pagination not exhaustive. |
 | POST `/api/documents` | 201 for valid PDF/PNG | 403 if VIEWER | 403 if VIEWER | Role-based: OWNER can upload own | 403 | 401 | Malicious-file cases tested; every role not individually checked. |
-| GET `/api/documents/:id/download` | 200 | 200 | 200 | 404 | 404 | 401 | Owner isolation, grant, revoke and deleted checked; real Blob not tested. |
+| GET `/api/documents/:id/download` | 200 | 200 | 200 | 404 | 404 | 401 | Owner isolation, grant, revoke and deleted checked; a deployed synthetic grant and revocation also passed. |
 | PATCH `/api/documents/:id` | 204 | 404 | 204 | 404 | 404 | 401 | Metadata only: name/category. Read/edit/revoke and ownerId tampering checked. |
 | DELETE `/api/documents/:id` | 204 | 404 | 404 | 404 | 404 | 401 | Unrelated, READ and concurrent deletion checked; full role matrix incomplete. |
 | GET `/api/documents/:id/permissions` | 200 | 404 | 404 | 404 | 404 | 401 | Unrelated owner and missing auth checked; full role matrix incomplete. |
@@ -37,7 +37,7 @@ field does not replace stored bytes. File-content replacement is not implemented
 The most recent local storage test rejects path-like or malformed storage keys,
 checks a UUIDv4 local storage round trip and duplicate creation, and verifies
 that an audit-insert failure during upload cleans up the synthetic local file and
-metadata row when cleanup succeeds. Real Blob and cleanup failure remain untested.
+metadata row when cleanup succeeds. Failed-upload cleanup against real Blob remains untested.
 
 ## Authorization regression evidence (2026-11-05)
 

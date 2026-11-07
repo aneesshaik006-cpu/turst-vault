@@ -140,6 +140,9 @@ test('document isolation, grants, revocation, deletion and search over HTTP', { 
     assert.equal((await call(alice,`/api/documents/${id}/permissions`)).status,200);
     for(const body of [{email:'alice@test.invalid',permission:'READ'},{email:'missing@test.invalid',permission:'READ'},{email:'charlie@test.invalid',permission:'ADMIN'}]) assert.equal((await call(alice,`/api/documents/${id}/permissions`,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(body)})).status,400);
     assert.equal((await call(alice,'/api/documents?from=not-a-date')).status,400);
+    assert.equal((await call(alice,'/api/documents?from=2025-02-29')).status,400);
+    assert.equal((await call(alice,'/api/documents?from=2026-12-01&to=2026-01-01')).status,400);
+    assert.equal((await call(alice,'/api/documents?from=2024-02-29&to=2026-12-31')).status,200);
     assert.equal((await call(alice,`/api/documents/${id}`,{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({name:'',category:'private'})})).status,400);
     const rejectionReasons=(await db.query("SELECT metadata->>'reason' AS reason FROM audit_events WHERE action='REQUEST_REJECTED'")).rows.map(row=>row.reason);
     for(const reason of ['invalid_permission','invalid_recipient','invalid_search_date','invalid_document_details']) assert.ok(rejectionReasons.includes(reason),`${reason} is audited`);

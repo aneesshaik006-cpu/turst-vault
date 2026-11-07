@@ -1,9 +1,10 @@
 # Staging storage and document handling policy
 
-Status: staging only. Use synthetic, non-confidential files. The local code now
-requires a malware scan before storing uploads when `NODE_ENV=production`; it
-has not been deployed and no scanning service is configured or verified. Missing
-configuration, scanner errors, malformed responses and timeouts reject uploads.
+Status: staging only. Use synthetic, non-confidential files. The deployed Preview
+explicitly allows unscanned demo uploads when no scanner is configured. Other
+production-mode deployments require a scan. No scanning service is configured
+or verified. Missing configuration outside the Preview bypass, scanner errors,
+malformed responses and timeouts reject uploads.
 In non-production mode only, an absent scanner is skipped for local fixtures;
 when one is configured its failure still rejects the upload. PDF/PNG signatures
 and checksums are not malware scans.
@@ -24,10 +25,16 @@ responses from a disposable HTTPS mock, including a storage/database non-write
 check for rejected uploads. The mock recognizes a test string and does not scan
 for malware. These results do not verify a real scanner or its signatures.
 
-Soft deletion hides documents but intentionally does not remove Blob objects.
+Soft deletion hides documents but intentionally does not remove stored objects.
+The app supports the private Neon bucket when `STORAGE_DRIVER=neon` and the
+branch-scoped AWS credentials, HTTPS endpoint, region, and `NEON_STORAGE_BUCKET`
+(default `assets`) are configured. Reads pass through the app's authorization
+checks; no object URL is given to the browser. Switching drivers does not move
+existing objects or database records. Migrate and verify both before cutover.
 Failed writes can also leave orphans if cleanup fails. An authorized operator
 can run `npm run storage:reconcile` with a read-only database credential,
-`STORAGE_DRIVER=vercel-blob` and the designated Blob store credential. The
+`STORAGE_DRIVER=vercel-blob` and the designated Blob store credential, or
+`STORAGE_DRIVER=neon` and the designated private Neon bucket credentials. The
 command lists the entire store, compares every document key including deleted
 records, and reports older unmatched objects, missing objects and unrecognized
 pathnames. It never deletes objects. Its default age threshold is 24 hours;

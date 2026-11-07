@@ -1,5 +1,47 @@
 # Development history
 
+This log records development requests, AI assistance, tests and limitations.
+The dated entries describe the state at the time of each change.
+
+## 2026-11-07 — submission demo
+
+- Direction: Prepare a synthetic-data demo, make it accessible to reviewers, and
+  allow unscanned uploads in the demo while no scanner is available.
+- Work: Configured the Preview with a restricted database role, seeded five
+  synthetic accounts, added an explicitly enabled Preview-only scanner bypass,
+  deployed the demo, and removed Vercel Authentication at the user's request.
+- Verification: The local database suite passed 21 tests before the new scanner
+  configuration test was added. The new scanner tests and build checks passed;
+  the deployed owner login returned 200 and a synthetic PDF upload returned 201.
+- Limitations: The demo uses Vercel Blob; Neon storage cutover and independent
+  audit and backup controls are incomplete. A database-owner password was
+  exposed in conversation and needs rotation. Use synthetic data only.
+
+## 2026-11-07 — final assessment follow-up
+
+- Direction: Improve security evidence, threat thinking, functionality and
+  submission documentation as far as possible before a final assessment.
+- Work: Updated the threat model against current tests and deployment evidence;
+  ran the staging runtime-role inventory and a synthetic deployed API workflow.
+- Verification: All 23 tests passed against a disposable local database. The
+  deployed workflow covered login, upload, grant, download, edit, search,
+  revocation and administrator access control. The synthetic document was
+  soft-deleted, and test sessions were logged out.
+- Limits: These results do not establish independent checkpoint custody, a real
+  malware scanner, production readiness, or the outcome of the company's tests.
+
+## 2026-11-07 — date filter correction
+
+- Direction: Make another pass on functionality and submission readiness.
+- Finding and change: Date filters accepted impossible calendar dates and
+  reversed ranges. The API now rejects both with a 400 response and retains the
+  existing rejection audit behavior.
+- Verification: Unit and HTTP integration cases cover leap days, invalid dates
+  and reversed ranges. The full disposable-database suite passed 24 tests without
+  skips; login and date filtering were checked on the new Preview deployment.
+- Limit: A fresh visual browser walkthrough could not be run because the browser
+  host was unavailable. The known operational security gaps remain open.
+
 ## 2026-11-01 — authentication primitives
 
 - Request: Build TrustVault module by module, starting with authentication and security tests.
